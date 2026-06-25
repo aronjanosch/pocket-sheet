@@ -1,0 +1,18 @@
+{{!-- StatGridBlock: grid of stats; rollable ones are tappable. Emits rollStat. --}}
+<section class="ms-block ms-statgrid">
+  <div class="ms-grid">
+    {{#each stats}}
+      {{#if rollable}}
+        <button type="button" class="ms-stat ms-rollable" data-action="rollStat" data-key="{{key}}">
+          <span class="ms-stat-label">{{label}}</span>
+          <span class="ms-stat-value">{{value}}</span>
+        </button>
+      {{else}}
+        <div class="ms-stat">
+          <span class="ms-stat-label">{{label}}</span>
+          <span class="ms-stat-value">{{value}}</span>
+        </div>
+      {{/if}}
+    {{/each}}
+  </div>
+</section>
