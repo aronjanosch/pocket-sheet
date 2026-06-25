@@ -101,14 +101,22 @@ export async function applyMobileCanvasMode() {
   const off = game.settings.get("core", "noCanvas");
   const managed = game.settings.get(MODULE_ID, "canvasManaged");
 
-  if (want && !off) {
-    await game.settings.set(MODULE_ID, "canvasManaged", true);
-    await game.settings.set("core", "noCanvas", true);
-    location.reload();
-  } else if (!want && off && managed) {
-    await game.settings.set(MODULE_ID, "canvasManaged", false);
-    await game.settings.set("core", "noCanvas", false);
-    location.reload();
+  try {
+    if (want && !off) {
+      await game.settings.set(MODULE_ID, "canvasManaged", true);
+      await game.settings.set("core", "noCanvas", true);
+      console.log(`${MODULE_ID} | mobile detected — disabling canvas, reloading`);
+      location.reload();
+    } else if (!want && off && managed) {
+      await game.settings.set(MODULE_ID, "canvasManaged", false);
+      await game.settings.set("core", "noCanvas", false);
+      console.log(`${MODULE_ID} | not mobile — re-enabling canvas, reloading`);
+      location.reload();
+    }
+  } catch (err) {
+    // Private/incognito tabs (notably iOS Safari) can block the localStorage
+    // write that backs client settings — the canvas stays on. Surface it.
+    console.warn(`${MODULE_ID} | could not set canvas mode (private tab / blocked storage?)`, err);
   }
 }
 
