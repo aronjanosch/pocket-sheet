@@ -1,20 +1,39 @@
-{{!-- ResourceBlock: bar / pips / diamond / tracks variants + +/- stepper. Emits adjustResource. --}}
+{{!-- ResourceBlock: slide-to-set bar / pips / diamonds, or read-only tracks.
+      Drag the track with a finger to set the value (commits on release → setResource). --}}
 <section class="ms-block ms-resource {{toneClass}}" data-key="{{key}}">
   <div class="ms-resource-head">
     <span class="ms-resource-label">{{label}}</span>
-    <span class="ms-resource-value">{{value}}{{#if hasMax}}<span class="ms-resource-max">/{{max}}</span>{{/if}}</span>
+    <span class="ms-resource-value"><span class="ms-rv-cur">{{value}}</span>{{#if hasMax}}<span class="ms-resource-max">/{{max}}</span>{{/if}}</span>
     {{#if hasDie}}<span class="ms-resource-die">{{die}}</span>{{/if}}
     {{#if hasTemp}}<span class="ms-resource-temp">{{temp}}</span>{{/if}}
+    {{#if slidable}}<span class="ms-resource-hint">slide to set</span>{{/if}}
   </div>
 
   {{#if isBar}}
-    <div class="ms-bar"><div class="ms-bar-fill" style="width:{{pct}}%"></div></div>
+    {{#if slidable}}
+      <div class="ms-slider ms-slider-bar" data-resource-drag data-key="{{key}}" data-max="{{max}}">
+        <div class="ms-bar"><div class="ms-bar-fill" style="width:{{pct}}%"></div></div>
+        <span class="ms-slider-knob" style="left:{{pct}}%"></span>
+      </div>
+    {{else}}
+      <div class="ms-bar"><div class="ms-bar-fill" style="width:{{pct}}%"></div></div>
+    {{/if}}
   {{/if}}
 
   {{#if isPips}}
-    <div class="ms-pips{{#if small}} ms-pips-small{{/if}}{{#if diamond}} ms-pips-diamond{{/if}}">
-      {{#each pips}}<span class="ms-pip{{#if this.filled}} ms-pip-on{{/if}}"></span>{{/each}}
-    </div>
+    {{#if slidable}}
+      <div class="ms-slider ms-pips-track{{#if diamond}} ms-pips-diamond{{/if}}{{#if small}} ms-pips-small{{/if}}"
+           data-resource-drag data-key="{{key}}" data-max="{{max}}">
+        <span class="ms-slider-rail"></span>
+        <div class="ms-pips ms-pips-row">
+          {{#each pips}}<span class="ms-pip{{#if this.filled}} ms-pip-on{{/if}}{{#if this.thumb}} ms-pip-thumb{{/if}}"></span>{{/each}}
+        </div>
+      </div>
+    {{else}}
+      <div class="ms-pips{{#if small}} ms-pips-small{{/if}}{{#if diamond}} ms-pips-diamond{{/if}}">
+        {{#each pips}}<span class="ms-pip{{#if this.filled}} ms-pip-on{{/if}}"></span>{{/each}}
+      </div>
+    {{/if}}
   {{/if}}
 
   {{#if isTracks}}
@@ -27,15 +46,6 @@
           </div>
         </div>
       {{/each}}
-    </div>
-  {{/if}}
-
-  {{#if editable}}
-    <div class="ms-stepper">
-      <button type="button" class="ms-step" data-action="adjustResource" data-key="{{key}}" data-delta="-1"
-              aria-label="Decrease {{label}}">&minus;</button>
-      <button type="button" class="ms-step" data-action="adjustResource" data-key="{{key}}" data-delta="1"
-              aria-label="Increase {{label}}">+</button>
     </div>
   {{/if}}
 </section>

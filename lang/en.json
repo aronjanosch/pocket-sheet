@@ -9,6 +9,9 @@
 
   "MOBILE_SHEET.error.actionFailed": "Pocket Sheet: that action failed.",
 
+  "MOBILE_SHEET.dialog.add": "+ Add",
+  "MOBILE_SHEET.dialog.subtract": "− Subtract",
+
   "MOBILE_SHEET.settings.devStub.name": "Developer: stub adapter",
   "MOBILE_SHEET.settings.devStub.hint": "Register a dummy adapter that renders one of each block kind, for testing the shell without a real system adapter. Reload after changing.",
 

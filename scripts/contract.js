@@ -47,10 +47,11 @@
 
 /**
  * @typedef {object} Intent
- * @property {"rollStat"|"useItem"|"openItem"|"adjustResource"|"toggleTag"|"toggleItem"|"primary"} type
- * @property {string} [key]     Stat key (rollStat), resource key (adjustResource), or tag key (toggleTag).
+ * @property {"rollStat"|"useItem"|"openItem"|"adjustResource"|"setResource"|"toggleTag"|"toggleItem"|"primary"} type
+ * @property {string} [key]     Stat key (rollStat), resource key (adjustResource/setResource), or tag key (toggleTag).
  * @property {string} [itemId]  Item id (useItem / openItem / toggleItem).
  * @property {number} [delta]   Resource step (adjustResource), e.g. +1 / -1.
+ * @property {number} [value]   Absolute resource value (setResource) from slide-to-set.
  * @property {string} [statKey] Active stat key the shell passes with a `primary` action.
  * @property {Event}  [event]   Forwarded DOM event for modifier-key / dialog behavior.
  */

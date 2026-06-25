@@ -337,6 +337,83 @@
 .ms-pips-mini { margin-top: 0; gap: 5px; }
 .ms-pips-mini .ms-pip { width: 11px; height: 11px; border-radius: 2px; }
 
+/* --- slide-to-set sliders ------------------------------------------------- */
+
+.ms-resource-hint {
+  margin-left: auto;
+  font: 500 9px var(--ms-sans);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ms-muted);
+}
+.ms-resource-die + .ms-resource-hint,
+.ms-resource-temp + .ms-resource-hint { margin-left: 8px; }
+
+.ms-slider {
+  position: relative;
+  width: 100%;
+  margin-top: 10px;
+  display: flex;
+  align-items: center;
+  touch-action: none;
+  user-select: none;
+  cursor: ew-resize;
+}
+
+.ms-slider-bar { height: 44px; }
+.ms-slider-bar .ms-bar { width: 100%; margin-top: 0; height: 10px; }
+
+.ms-slider-knob {
+  position: absolute;
+  top: 50%;
+  width: 22px;
+  height: 22px;
+  transform: translate(-50%, -50%);
+  border-radius: 50%;
+  background: linear-gradient(155deg, var(--tone), color-mix(in oklab, var(--tone) 70%, black));
+  border: 1px solid color-mix(in oklab, var(--tone) 55%, white);
+  box-shadow: 0 2px 8px #0008, 0 0 0 4px color-mix(in oklab, var(--tone) 30%, transparent);
+  pointer-events: none;
+}
+
+.ms-pips-track { height: 48px; }
+.ms-pips-track.ms-pips-small { height: 42px; }
+
+.ms-slider-rail {
+  position: absolute;
+  left: 7px;
+  right: 7px;
+  top: 50%;
+  height: 8px;
+  transform: translateY(-50%);
+  background: #00000055;
+  border: 1px solid var(--ms-line);
+  border-radius: 999px;
+}
+
+.ms-pips-row {
+  position: relative;
+  width: 100%;
+  margin-top: 0;
+  gap: 0;
+  flex-wrap: nowrap;
+  justify-content: space-between;
+  padding: 0 2px;
+  pointer-events: none;
+}
+
+.ms-pips-track.ms-pips-diamond .ms-pips-row { padding: 0 5px; }
+
+.ms-pip-thumb {
+  transform: scale(1.22);
+  z-index: 2;
+  box-shadow: inset 0 1px 0 #ffffff44, 0 0 0 4px color-mix(in oklab, var(--tone) 38%, transparent);
+}
+.ms-pips-diamond .ms-pip-thumb {
+  transform: rotate(45deg) scale(1.22);
+  box-shadow: 0 0 9px var(--tone), 0 0 0 4px color-mix(in oklab, var(--tone) 38%, transparent);
+}
+
 .ms-stepper {
   display: flex;
   gap: 9px;
@@ -663,3 +740,9 @@
 }
 
 .ms-fab:hover { filter: brightness(1.08); }
+
+/* --- resource +/- dialog (rendered outside the sheet root) ----------------- */
+
+.ms-amt-dialog { display: flex; flex-direction: column; gap: 8px; padding: 4px 2px; }
+.ms-amt-label { font-weight: 600; }
+.ms-amt-input { width: 100%; font-size: 1.4rem; text-align: center; padding: 8px; }
