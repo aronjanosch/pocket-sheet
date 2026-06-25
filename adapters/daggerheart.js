@@ -1,5 +1,5 @@
 /**
- * Mobile Sheet — Daggerheart (Foundryborne) adapter (v2: themed, tabbed).
+ * Pocket Sheet — Daggerheart (Foundryborne) adapter (v2: themed, tabbed).
  *
  * The only place Daggerheart knowledge lives. Two halves:
  *   - read: getViewModel(actor) is PURE — maps actor.system → themed tabs + blocks.
@@ -10,7 +10,7 @@
  * shape drift degrades gracefully — an absent field omits a block, never throws.
  * Fields marked VERIFY are confirmed only against a live Daggerheart 2.x world.
  *
- * @typedef {import("../scripts/contract.js").MobileSheetAdapter} MobileSheetAdapter
+ * @typedef {import("../scripts/contract.js").PocketSheetAdapter} PocketSheetAdapter
  */
 
 const SYSTEM_ID = "daggerheart";
@@ -246,7 +246,7 @@ function adjustResource(actor, key, delta) {
 
 // --- adapter -----------------------------------------------------------------
 
-/** @type {MobileSheetAdapter} */
+/** @type {PocketSheetAdapter} */
 export const daggerheartAdapter = {
   systemId: SYSTEM_ID,
   actorTypes: ["character"],

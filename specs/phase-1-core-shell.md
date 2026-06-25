@@ -10,7 +10,7 @@ Phase 1 is testable without a real adapter via a throwaway **stub adapter** (ret
 
 ## 1. Deliverables
 
-1. `MobileSheet` shell class (`ActorSheetV2` + `HandlebarsApplicationMixin`).
+1. `PocketSheet` shell class (`ActorSheetV2` + `HandlebarsApplicationMixin`).
 2. `templates/sheet.hbs` + four block partials.
 3. Intent dispatch (DOM → `Intent` → `adapter.invoke`).
 4. Live re-render on actor change.
@@ -26,7 +26,7 @@ Not in scope: auto-detect / actor selector (Phase 3); any concrete system mappin
 ## 2. Shell class
 
 ```
-MobileSheet extends HandlebarsApplicationMixin(foundry.applications.sheets.ActorSheetV2)
+PocketSheet extends HandlebarsApplicationMixin(foundry.applications.sheets.ActorSheetV2)
 ```
 
 Responsibilities, in order, per render:
@@ -139,7 +139,7 @@ A minimal adapter registered only when a dev flag is set, returning a static `Vi
 
 ## 10. Acceptance criteria
 
-- [ ] Selecting "Mobile Sheet" on a character opens the shell on both v13 and v14.
+- [ ] Selecting "Pocket Sheet" on a character opens the shell on both v13 and v14.
 - [ ] With the stub adapter, all four block kinds render correctly on a phone-width viewport.
 - [ ] Tapping a rollable stat / item / stepper dispatches the correct `Intent` to `adapter.invoke` (verified via stub logging).
 - [ ] Editing the actor elsewhere re-renders the open sheet live.

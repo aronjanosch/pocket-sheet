@@ -2,7 +2,7 @@
 
 Status: draft · Depends on: Phase 1 (core shell), Phase 2 (Daggerheart adapter) · Blocks: real phone testing
 
-The activation layer. Phases 1–2 require a player to *manually* select "Mobile Sheet" from the sheet-config dropdown — fine for a maintainer, painful on a phone. Phase 3 makes the mobile sheet **present itself** on mobile clients and lets a player who owns several actors **pick which one**.
+The activation layer. Phases 1–2 require a player to *manually* select "Pocket Sheet" from the sheet-config dropdown — fine for a maintainer, painful on a phone. Phase 3 makes the mobile sheet **present itself** on mobile clients and lets a player who owns several actors **pick which one**.
 
 This is purely a client-side presentation concern. It reads no `actor.system`, touches no world data, adds no sync. It decides *when* to show the shell and *for which actor* — nothing about *what* the shell renders (that is the adapter, untouched here).
 
@@ -13,7 +13,7 @@ This is purely a client-side presentation concern. It reads no `actor.system`, t
 ## 1. Deliverables
 
 1. **Mobile detection** — a single `isMobile()` predicate + a client `activation` setting (`auto` / `always` / `never`).
-2. **Launcher** — on `ready`, when active, resolve the target actor and open `MobileSheet` for it.
+2. **Launcher** — on `ready`, when active, resolve the target actor and open `PocketSheet` for it.
 3. **Actor resolution** — assigned character → single owned actor → actor selector.
 4. **Actor selector** — a minimal `ApplicationV2` list of the player's owned actors (only when the choice is ambiguous, or invoked manually).
 5. **Persistent reopen / switch control** — a floating button so a closed sheet can be reopened and the actor switched without desktop chrome.
@@ -58,22 +58,22 @@ A `client`-scope setting `activation` overrides detection so it is never a trap:
 
 ## 3. Launcher (the `ready` flow)
 
-On `Hooks.once("ready")`, after `registerMobileSheet()` (so the sheet class is registered):
+On `Hooks.once("ready")`, after `registerPocketSheet()` (so the sheet class is registered):
 
 ```
 if (!shouldActivate()) return;        // still install the FAB (§6); just don't auto-open
 const actor = await resolveTargetActor();
-if (actor) openMobileSheet(actor);    // else: selector already shown, or nothing owned
+if (actor) openPocketSheet(actor);    // else: selector already shown, or nothing owned
 ```
 
-- `openMobileSheet(actor)` opens the shell **explicitly**, bypassing Foundry's default-sheet machinery entirely:
+- `openPocketSheet(actor)` opens the shell **explicitly**, bypassing Foundry's default-sheet machinery entirely:
 
   ```js
-  new MobileSheet({ document: actor }).render(true);
+  new PocketSheet({ document: actor }).render(true);
   ```
 
   This is the crux decision: **we do not change the world's default sheet class.** Foundry stores the default sheet per-world (`core.sheetClasses`) and per-actor (`flags.core.sheetClass`) — neither is per-client, so flipping it for a mobile player would also change it for the DM on the desktop. An explicit `render` sidesteps that: the desktop experience is byte-for-byte unchanged, and we still benefit from the `registerSheet` registration (Phase 1) so the sheet is *also* manually selectable.
-- Guard against opening duplicates: if a `MobileSheet` for this actor is already rendered, bring it to front instead of constructing a second.
+- Guard against opening duplicates: if a `PocketSheet` for this actor is already rendered, bring it to front instead of constructing a second.
 
 ---
 
@@ -83,7 +83,7 @@ if (actor) openMobileSheet(actor);    // else: selector already shown, or nothin
 
 1. **Assigned character** — `game.user.character`, if set and owned. The Foundry-native "this is my PC" pointer; the common case.
 2. **Sole owned actor** — if the player owns exactly one actor of a type the active adapter supports, use it.
-3. **Ambiguous** — owns several → show the **actor selector** (§5) and let the player choose. Resolution returns nothing; the selector drives `openMobileSheet`.
+3. **Ambiguous** — owns several → show the **actor selector** (§5) and let the player choose. Resolution returns nothing; the selector drives `openPocketSheet`.
 4. **None owned** — do nothing (a GM-only / spectator client). FAB still present so they can pick later.
 
 Owned-actor set:
@@ -92,7 +92,7 @@ Owned-actor set:
 game.actors.filter((a) => a.isOwner && adapterSupportsType(a.type));
 ```
 
-`adapterSupportsType` reuses the active adapter's `actorTypes` (already used by `registerMobileSheet`); if no adapter, fall back to all types (the shell will show its `no-adapter` state — never an error). This is the **only** adapter coupling in Phase 3, and it is just the type-allowlist already exposed by the contract — no new contract surface.
+`adapterSupportsType` reuses the active adapter's `actorTypes` (already used by `registerPocketSheet`); if no adapter, fall back to all types (the shell will show its `no-adapter` state — never an error). This is the **only** adapter coupling in Phase 3, and it is just the type-allowlist already exposed by the contract — no new contract surface.
 
 ---
 
@@ -101,7 +101,7 @@ game.actors.filter((a) => a.isOwner && adapterSupportsType(a.type));
 A minimal `ApplicationV2` (`HandlebarsApplicationMixin`), not a sheet — it owns no document.
 
 - **Renders:** a single-column, big-tap-target list of owned actors → name + portrait (`actor.img`, `actor.name`). Same mobile-first CSS language as the shell.
-- **Tap an entry** → `openMobileSheet(actor)` and close the selector.
+- **Tap an entry** → `openPocketSheet(actor)` and close the selector.
 - **Invoked when:** resolution is ambiguous (§4.3), **or** the player taps "switch actor" on the FAB / in the open sheet.
 - One row → it can auto-pick (skip the dialog) when called from the launcher; when invoked manually it always shows (the point is to switch).
 - Reads only `actor.name` / `actor.img` / `actor.id` — no `actor.system`. Selector stays system-agnostic like the shell.

@@ -1,4 +1,4 @@
-# Mobile Sheet — Roadmap
+# Pocket Sheet — Roadmap
 
 A free, MIT-licensed FoundryVTT module: mobile-friendly character sheets for in-person play. Players open their sheet on a phone/tablet; the DM drives one shared map on a big screen — mirroring how a real in-person session works.
 

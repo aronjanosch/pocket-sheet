@@ -24,7 +24,7 @@ Not in scope: the shell sheet (Phase 1), any concrete adapter (Phase 2+), mobile
 ## 2. Directory layout
 
 ```
-mobile-sheet/
+pocket-sheet/
   module.json
   LICENSE                  # MIT
   README.md
@@ -40,7 +40,7 @@ mobile-sheet/
     sheet.hbs              # Phase 1 shell template
     blocks/                # Phase 1 block partials
   styles/
-    mobile-sheet.css       # mobile-first base
+    pocket-sheet.css       # mobile-first base
   lang/
     en.json
 ```
@@ -53,12 +53,12 @@ Plain ESM. No bundler. Foundry loads `scripts/*.js`, `.hbs`, lang JSON natively.
 
 ```jsonc
 {
-  "id": "mobile-sheet",
-  "title": "Mobile Sheet",
+  "id": "pocket-sheet",
+  "title": "Pocket Sheet",
   "description": "Mobile-friendly character sheets for in-person play.",
   "compatibility": { "minimum": "13", "verified": "14" },
   "esmodules": ["scripts/main.js"],
-  "styles": ["styles/mobile-sheet.css"],
+  "styles": ["styles/pocket-sheet.css"],
   "languages": [{ "lang": "en", "name": "English", "path": "lang/en.json" }]
   // no "relationships.requires" — zero hard deps
 }
@@ -76,7 +76,7 @@ An adapter is a plain object implementing this interface for one system. It is t
 
 ```js
 /**
- * @typedef {object} MobileSheetAdapter
+ * @typedef {object} PocketSheetAdapter
  * @property {string}   systemId        // must equal game.system.id to be selected
  * @property {string[]} actorTypes      // actor types this adapter renders, e.g. ["character"]
  *
@@ -182,7 +182,7 @@ export function resolve(systemId) { return adapters.get(systemId) ?? null; }
 ```
 
 - Built-in adapters self-register on `init`.
-- Community/third-party modules register via the public API (`game.modules.get("mobile-sheet").api.register(adapter)`) **or** by listening for the `mobileSheet.ready` hook (fired with the api), so a new system = one external file, **zero core changes** and **no load-order coupling**.
+- Community/third-party modules register via the public API (`game.modules.get("pocket-sheet").api.register(adapter)`) **or** by listening for the `pocketSheet.ready` hook (fired with the api), so a new system = one external file, **zero core changes** and **no load-order coupling**.
 - If `resolve(game.system.id)` is `null`, or `checkAvailability().ok === false`, the module stays inert / shows a graceful unsupported state (no registration of the mobile sheet, or a stub sheet with the reason).
 
 ---
@@ -198,7 +198,7 @@ export function resolve(systemId) { return adapters.get(systemId) ?? null; }
 ## 8. Decisions & open questions
 
 Decided:
-1. **Registration** — expose `game.modules.get("mobile-sheet").api.register(adapter)` **and** fire a `mobileSheet.ready` hook (passing the registry/api) so third-party adapters register regardless of module load order.
+1. **Registration** — expose `game.modules.get("pocket-sheet").api.register(adapter)` **and** fire a `pocketSheet.ready` hook (passing the registry/api) so third-party adapters register regardless of module load order.
 2. **Localization** — the adapter returns **display-ready strings** in the view model (it owns its system's vocabulary, e.g. "Hope", "Agility"). The shell never resolves system i18n keys.
 
 Still open (resolve before/with Phase 1):

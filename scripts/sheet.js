@@ -1,5 +1,5 @@
 /**
- * Mobile Sheet — the core shell (v2: themed, tabbed block vocabulary).
+ * Pocket Sheet — the core shell (v2: themed, tabbed block vocabulary).
  *
  * A registered ActorSheetV2 that renders ONLY the normalized view model from an
  * adapter (contract.js). It contains zero system knowledge: it never reads
@@ -32,7 +32,7 @@ const TONE_CLASS = {
 
 const clampPct = (v, m) => (!m || m <= 0 ? 0 : Math.max(0, Math.min(100, (v / m) * 100)));
 
-export class MobileSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
+export class PocketSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
   /** @type {Record<string, number>} live re-render hook ids, removed on close. */
   #hookIds = {};
   /** Shell-local UI state — never written to the actor. */
@@ -40,19 +40,19 @@ export class MobileSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
   #activeStatKey = null;
 
   static DEFAULT_OPTIONS = {
-    classes: ["mobile-sheet"],
+    classes: ["pocket-sheet"],
     position: { width: 430, height: 860 },
     window: { resizable: true },
     actions: {
-      rollStat: MobileSheet.#onRollStat,
-      useItem: MobileSheet.#onUseItem,
-      openItem: MobileSheet.#onOpenItem,
-      adjustResource: MobileSheet.#onAdjustResource,
-      toggleTag: MobileSheet.#onToggleTag,
-      toggleItem: MobileSheet.#onToggleItem,
-      primary: MobileSheet.#onPrimary,
-      selectTab: MobileSheet.#onSelectTab,
-      selectStat: MobileSheet.#onSelectStat
+      rollStat: PocketSheet.#onRollStat,
+      useItem: PocketSheet.#onUseItem,
+      openItem: PocketSheet.#onOpenItem,
+      adjustResource: PocketSheet.#onAdjustResource,
+      toggleTag: PocketSheet.#onToggleTag,
+      toggleItem: PocketSheet.#onToggleItem,
+      primary: PocketSheet.#onPrimary,
+      selectTab: PocketSheet.#onSelectTab,
+      selectStat: PocketSheet.#onSelectStat
     }
   };
 
@@ -384,10 +384,10 @@ export class MobileSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
  * system has an adapter, restrict to its actorTypes; otherwise register for all
  * types so opening it shows the graceful "no-adapter" state.
  */
-export function registerMobileSheet() {
+export function registerPocketSheet() {
   const adapter = resolve(game.system.id);
   const types = adapter?.actorTypes?.length ? adapter.actorTypes : undefined;
-  foundry.documents.collections.Actors.registerSheet(MODULE_ID, MobileSheet, {
+  foundry.documents.collections.Actors.registerSheet(MODULE_ID, PocketSheet, {
     types,
     makeDefault: false,
     label: game.i18n.localize("MOBILE_SHEET.sheet.label")

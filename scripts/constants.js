@@ -1,2 +1,2 @@
-/** Mobile Sheet — shared constants. Imported by every module; imports nothing (no cycles). */
-export const MODULE_ID = "mobile-sheet";
+/** Pocket Sheet — shared constants. Imported by every module; imports nothing (no cycles). */
+export const MODULE_ID = "pocket-sheet";
