@@ -96,6 +96,32 @@
   font: 600 18px var(--ms-serif);
 }
 
+/* Portrait doubles as the character switcher when more than one is owned. */
+.ms-portrait-switch {
+  position: relative;
+  flex: 0 0 auto;
+  padding: 0;
+  border: none;
+  background: none;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.ms-switch-badge {
+  position: absolute;
+  right: -3px;
+  bottom: -3px;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: linear-gradient(135deg, var(--ms-accent), var(--ms-accent-deep));
+  color: #1a1305;
+  font-size: 9px;
+  border: 2px solid var(--ms-bg);
+}
+
 .ms-id-text { flex: 1; min-width: 0; }
 
 .ms-name {

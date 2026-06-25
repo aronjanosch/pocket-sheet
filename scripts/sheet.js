@@ -70,7 +70,8 @@ export class PocketSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
       toggleItem: PocketSheet.#onToggleItem,
       primary: PocketSheet.#onPrimary,
       selectTab: PocketSheet.#onSelectTab,
-      selectStat: PocketSheet.#onSelectStat
+      selectStat: PocketSheet.#onSelectStat,
+      switchActor: PocketSheet.#onSwitchActor
     }
   };
 
@@ -124,11 +125,23 @@ export class PocketSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
       theme,
       themeStyle: `--ms-accent:${theme.accent}; --ms-accent-deep:${theme.accentDeep};`,
       identity: this.#identity(vm),
+      canSwitch: this.#switchableCount() > 1,
       topStats: (vm.topStats ?? []).map((s) => ({ ...s, value: String(s.value) })),
       tabs: tabs.map((t) => ({ id: t.id, label: t.label, active: t.id === active.id })),
       blocks,
       primary
     };
+  }
+
+  /** Count of owned actors the active adapter supports — drives the in-sheet
+   *  character switcher (shown only when there's more than one to switch to). */
+  #switchableCount() {
+    const types = resolve(game.system.id)?.actorTypes;
+    return (
+      game.actors?.filter(
+        (a) => a.isOwner && (!types?.length || types.includes(a.type))
+      ).length ?? 0
+    );
   }
 
   /** Theme = the one style a system owns. Default accentDeep to accent. */
@@ -435,6 +448,13 @@ export class PocketSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
   static #onSelectStat(event, target) {
     this.#activeStatKey = target.dataset.key;
     this.render();
+  }
+
+  /** Open the owned-actor picker. Dynamic import avoids a load-time cycle with
+   *  launcher.js (which imports PocketSheet). */
+  static async #onSwitchActor() {
+    const { ActorSelector } = await import("./launcher.js");
+    new ActorSelector().render(true);
   }
 
   // --- secondary gesture (long-press / right-click → openItem) --------------

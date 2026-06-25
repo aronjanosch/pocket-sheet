@@ -266,7 +266,10 @@ export function applyMobileChrome() {
  */
 export function activateLauncher() {
   applyMobileChrome();
-  if (shouldShowFab()) installLauncherFab();
+  // In fullscreen sheet-only mode the sheet can't be closed and carries its own
+  // character switcher (tap the portrait), so the FAB is redundant — skip it.
+  const sheetOnly = document.body.classList.contains("pocket-sheet-only");
+  if (shouldShowFab() && !sheetOnly) installLauncherFab();
   if (!shouldActivate()) return;
 
   const actor = resolveTargetActor();
