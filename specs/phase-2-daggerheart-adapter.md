@@ -2,7 +2,7 @@
 
 Status: draft · Depends on: Phase 0 (adapter contract) + Phase 1 (core shell) · Blocks: Phase 4 (dnd5e adapter — hardens the contract from two implementations)
 
-The first real adapter: one file, `adapters/daggerheart.js`, implementing the Phase 0 `MobileSheetAdapter` interface for the Daggerheart (Foundryborne) system. It maps `actor.system` → the normalized view model and translates the four intents into Daggerheart's own document methods. It contains **all** Daggerheart knowledge; the shell stays system-agnostic.
+The first real adapter: one file, `adapters/daggerheart.js`, implementing the Phase 0 `PocketSheetAdapter` interface for the Daggerheart (Foundryborne) system. It maps `actor.system` → the normalized view model and translates the four intents into Daggerheart's own document methods. It contains **all** Daggerheart knowledge; the shell stays system-agnostic.
 
 This phase validates the abstraction against a real, opinionated system. If a clean adapter can be written with **zero shell changes**, the Phase 0 contract holds. Any shell change forced here is a contract defect to log (§9), not to patch silently.
 
@@ -11,7 +11,7 @@ This phase validates the abstraction against a real, opinionated system. If a cl
 ## 1. Deliverables
 
 1. `adapters/daggerheart.js` — adapter object implementing `systemId`, `actorTypes`, `checkAvailability`, `getViewModel`, `invoke`.
-2. Self-registration on `init` (via the registry / `mobileSheet.ready`, Phase 0 §6).
+2. Self-registration on `init` (via the registry / `pocketSheet.ready`, Phase 0 §6).
 3. Read mapping: HP / Stress / Hope resources, six traits, derived stats, action lists, experiences → view-model blocks (§4).
 4. Act mapping: the four intents delegated to `rollTrait` / `item.use` / `actor.update` / `item.sheet.render` (§5).
 5. Defensive reads + `checkAvailability` covering the v13-vs-v14 / pre-2.x data drift (§6).
@@ -43,7 +43,7 @@ Returns `{ ok: true }` only when all hold (read defensively, each guarded):
 2. The write API exists: `typeof actor?.rollTrait === "function"` **and** the duality roll is registered: `CONFIG.Dice?.daggerheart?.DualityRoll` present.
 3. System version is a known-good major: `game.system.version` satisfies `>= 2.0.0` (the line where `system.resources.*` + `rollTrait` are confirmed; RESEARCH.md). Below that → not-ok.
 
-On failure return `{ ok: false, reason }` with a player-readable, adapter-localized message, e.g. _"Requires Daggerheart 2.x — your version is older."_ or _"This Daggerheart version isn't supported by Mobile Sheet yet."_ Never throw from `checkAvailability`.
+On failure return `{ ok: false, reason }` with a player-readable, adapter-localized message, e.g. _"Requires Daggerheart 2.x — your version is older."_ or _"This Daggerheart version isn't supported by Pocket Sheet yet."_ Never throw from `checkAvailability`.
 
 > `checkAvailability` is consulted once per render before `getViewModel` (Phase 1 §2). It must be cheap and side-effect-free.
 
@@ -175,7 +175,7 @@ function adjustResource(actor, key, delta) {
 
 ## 7. Localization (adapter owns Daggerheart vocabulary)
 
-Per Phase 0 §8 decision 2, the adapter returns **display-ready strings**; the shell never resolves system i18n keys. The adapter localizes via the `mobile-sheet` lang files (its own namespace), e.g. `MOBILE_SHEET.daggerheart.trait.agility`, `…resource.hope`, `…stat.evasion`, `…list.weapons`. Raw keys (`agility`, `hitPoints`) stay internal — used only as intent/update keys, never shown.
+Per Phase 0 §8 decision 2, the adapter returns **display-ready strings**; the shell never resolves system i18n keys. The adapter localizes via the `pocket-sheet` lang files (its own namespace), e.g. `MOBILE_SHEET.daggerheart.trait.agility`, `…resource.hope`, `…stat.evasion`, `…list.weapons`. Raw keys (`agility`, `hitPoints`) stay internal — used only as intent/update keys, never shown.
 
 New `lang/en.json` entries for: 3 resource labels, 6 trait names, derived-stat labels (Evasion, Proficiency, Thresholds), 4 list titles, Experiences title, and the `checkAvailability` failure messages.
 
@@ -207,13 +207,13 @@ Resolve during build; anything that forced a shell change is contract feedback t
 
 ## 10. Acceptance criteria
 
-- [ ] On a Daggerheart `character`, selecting "Mobile Sheet" renders HP, Stress, Hope (with steppers), the six traits, derived stats, weapons/domain cards/features/consumables, and experiences — on a phone-width viewport.
+- [ ] On a Daggerheart `character`, selecting "Pocket Sheet" renders HP, Stress, Hope (with steppers), the six traits, derived stats, weapons/domain cards/features/consumables, and experiences — on a phone-width viewport.
 - [ ] Tapping a trait posts a Daggerheart **duality roll** to shared chat (via `rollTrait`); the adapter builds no Roll itself.
 - [ ] Tapping a weapon / domain card / feature / consumable triggers the system's `item.use` (its normal chat card / attack).
 - [ ] +/- on HP / Stress / Hope updates `system.resources.<key>.value`, clamped to `[0, max]` (lower bound enforced even when `max` is unknown), and the sheet re-renders live.
 - [ ] Long-press / secondary on an action item opens that item's own sheet (`openItem`).
 - [ ] On an unsupported Daggerheart version (pre-2.x / `rollTrait` absent), the sheet shows the **unsupported** state with the adapter's `reason` — no console errors.
 - [ ] Adapter touches **no** shell/template/CSS file; the Phase 1 shell renders it through the view model alone (system firewall holds). Any deviation logged in §9.
-- [ ] All player-visible strings come from `mobile-sheet` lang files (no raw system keys shown).
+- [ ] All player-visible strings come from `pocket-sheet` lang files (no raw system keys shown).
 - [ ] Works identically whether Daggerheart 2.x runs on Foundry v13 or v14.
 ```

@@ -1,15 +1,15 @@
 /**
- * Mobile Sheet — dev-only stub adapter.
+ * Pocket Sheet — dev-only stub adapter.
  *
  * Returns a static v2 view model exercising every block kind / variant so the
  * shell can be built and reviewed without a real system adapter. `invoke` logs.
  *
  * NOT shipped behavior: registered only when the client setting
- * `mobile-sheet.devStub` is enabled. Its systemId is set to the active system
+ * `pocket-sheet.devStub` is enabled. Its systemId is set to the active system
  * at registration time so `resolve` always finds it in dev.
  */
 
-/** @type {import("./contract.js").MobileSheetAdapter} */
+/** @type {import("./contract.js").PocketSheetAdapter} */
 export const stubAdapter = {
   systemId: "", // set to game.system.id at registration (see main.js)
   actorTypes: ["character"],
@@ -64,6 +64,6 @@ export const stubAdapter = {
   },
 
   async invoke(actor, intent) {
-    console.log("mobile-sheet | stub invoke", intent);
+    console.log("pocket-sheet | stub invoke", intent);
   }
 };

@@ -1,5 +1,5 @@
 /**
- * Mobile Sheet — entry point.
+ * Pocket Sheet — entry point.
  *
  * Wires the adapter registry, the public extension API, the Handlebars helper /
  * partials, and registers the shell sheet. With no adapter for the active system
@@ -7,14 +7,14 @@
  *
  * Load-order safety (spec phase-0 §6): the API is attached to the module record
  * at `init` (so adapters registering from their own `init` find it), and the
- * `mobileSheet.ready` hook fires at `setup` (after every module's `init`). The
+ * `pocketSheet.ready` hook fires at `setup` (after every module's `init`). The
  * shell sheet is registered at `ready`, once all adapters have had both chances
  * to register, so its actor-type restriction reflects the resolved adapter.
  */
 
 import { MODULE_ID } from "./constants.js";
 import { register, resolve } from "./registry.js";
-import { MobileSheet, registerMobileSheet } from "./sheet.js";
+import { PocketSheet, registerPocketSheet } from "./sheet.js";
 import { registerActivationSettings, activateLauncher } from "./launcher.js";
 import { stubAdapter } from "./stub-adapter.js";
 import { daggerheartAdapter } from "../adapters/daggerheart.js";
@@ -22,14 +22,14 @@ import { daggerheartAdapter } from "../adapters/daggerheart.js";
 export { MODULE_ID };
 
 /**
- * @typedef {object} MobileSheetApi
+ * @typedef {object} PocketSheetApi
  * @property {typeof register} register
  * @property {typeof resolve}  resolve
- * @property {typeof MobileSheet} MobileSheet
+ * @property {typeof PocketSheet} PocketSheet
  */
 
-/** @type {MobileSheetApi} */
-const api = { register, resolve, MobileSheet };
+/** @type {PocketSheetApi} */
+const api = { register, resolve, PocketSheet };
 
 Hooks.once("init", () => {
   const module = game.modules.get(MODULE_ID);
@@ -66,7 +66,7 @@ Hooks.once("init", () => {
 
 Hooks.once("setup", () => {
   // After every module's `init` — third-party adapters listening for this register now.
-  Hooks.callAll("mobileSheet.ready", api);
+  Hooks.callAll("pocketSheet.ready", api);
 });
 
 Hooks.once("ready", () => {
@@ -77,7 +77,7 @@ Hooks.once("ready", () => {
     console.warn(`${MODULE_ID} | dev stub adapter active for system "${game.system.id}"`);
   }
 
-  registerMobileSheet();
+  registerPocketSheet();
 
   // Phase 3: install the launcher and auto-open on mobile.
   activateLauncher();

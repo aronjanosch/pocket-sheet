@@ -1,11 +1,11 @@
 /**
- * Mobile Sheet — activation layer (Phase 3). See specs/phase-3-activation.md.
+ * Pocket Sheet — activation layer (Phase 3). See specs/phase-3-activation.md.
  *
  * Decides WHEN to present the mobile sheet and FOR WHICH actor — never what it
  * renders (that is the adapter). Purely client-side presentation: reads no
  * `actor.system`, touches no world data, adds no sync.
  *
- * The crux decision: we open the shell EXPLICITLY (`new MobileSheet(...).render`)
+ * The crux decision: we open the shell EXPLICITLY (`new PocketSheet(...).render`)
  * instead of changing Foundry's default sheet class. Foundry stores the default
  * sheet per-world / per-actor — never per-client — so flipping it for a mobile
  * player would also change it for the DM on the desktop. Explicit render keeps
@@ -14,7 +14,7 @@
 
 import { MODULE_ID } from "./constants.js";
 import { resolve } from "./registry.js";
-import { MobileSheet } from "./sheet.js";
+import { PocketSheet } from "./sheet.js";
 
 const { ApplicationV2, HandlebarsApplicationMixin } = foundry.applications.api;
 
@@ -86,16 +86,16 @@ function resolveTargetActor() {
 
 // --- opening the shell -----------------------------------------------------
 
-/** Existing MobileSheet for this actor, if one is already rendered. */
+/** Existing PocketSheet for this actor, if one is already rendered. */
 function findOpenSheet(actor) {
   for (const app of foundry.applications.instances.values()) {
-    if (app instanceof MobileSheet && app.actor?.id === actor.id) return app;
+    if (app instanceof PocketSheet && app.actor?.id === actor.id) return app;
   }
   return null;
 }
 
 /** Open (or surface) the mobile sheet for `actor`. No duplicate windows. */
-export function openMobileSheet(actor) {
+export function openPocketSheet(actor) {
   if (!actor) return null;
   const existing = findOpenSheet(actor);
   if (existing) {
@@ -103,7 +103,7 @@ export function openMobileSheet(actor) {
     existing.bringToFront?.();
     return existing;
   }
-  const sheet = new MobileSheet({ document: actor });
+  const sheet = new PocketSheet({ document: actor });
   sheet.render(true);
   return sheet;
 }
@@ -114,7 +114,7 @@ export function openMobileSheet(actor) {
 export class ActorSelector extends HandlebarsApplicationMixin(ApplicationV2) {
   static DEFAULT_OPTIONS = {
     id: "ms-actor-selector",
-    classes: ["mobile-sheet", "ms-actor-selector"],
+    classes: ["pocket-sheet", "ms-actor-selector"],
     tag: "div",
     window: { title: "MOBILE_SHEET.launcher.selectTitle" },
     position: { width: 360, height: "auto" },
@@ -133,7 +133,7 @@ export class ActorSelector extends HandlebarsApplicationMixin(ApplicationV2) {
 
   static #onPick(event, target) {
     const actor = game.actors.get(target.dataset.actorId);
-    if (actor) openMobileSheet(actor);
+    if (actor) openPocketSheet(actor);
     this.close();
   }
 }
@@ -155,7 +155,7 @@ function installLauncherFab() {
   // Tap → reopen the current actor's sheet; fall back to the selector.
   btn.addEventListener("click", () => {
     const actor = resolveTargetActor();
-    if (actor) openMobileSheet(actor);
+    if (actor) openPocketSheet(actor);
     else if (ownedActors().length) new ActorSelector().render(true);
   });
 
@@ -180,14 +180,14 @@ function installLauncherFab() {
 
 /**
  * Install the launcher and, when active, auto-open the mobile sheet.
- * Call after registerMobileSheet() so the sheet class is registered.
+ * Call after registerPocketSheet() so the sheet class is registered.
  */
 export function activateLauncher() {
   if (shouldShowFab()) installLauncherFab();
   if (!shouldActivate()) return;
 
   const actor = resolveTargetActor();
-  if (actor) { openMobileSheet(actor); return; }
+  if (actor) { openPocketSheet(actor); return; }
 
   // Ambiguous: several owned actors → let the player pick. Skip the auto-popup
   // for a GM (who owns every actor) unless they have an assigned character

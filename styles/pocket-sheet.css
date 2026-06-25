@@ -1,5 +1,5 @@
 /*
- * Mobile Sheet — themed, mobile-first styles ("Modular Sheet Architecture").
+ * Pocket Sheet — themed, mobile-first styles ("Modular Sheet Architecture").
  *
  * The shell owns ALL visual design. A system adapter ships only its accent color
  * (injected as --ms-accent / --ms-accent-deep on .ms-root). Everything else —
@@ -8,7 +8,7 @@
 
 @import url("https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,500;0,600;0,700;1,600&family=Hanken+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap");
 
-.mobile-sheet {
+.pocket-sheet {
   /* Dark-parchment palette (fixed; theme only changes the accent). */
   --ms-bg: #13110c;
   --ms-surf: #1d1810;
@@ -40,7 +40,7 @@
 }
 
 /* The ApplicationV2 window content host. */
-.mobile-sheet .window-content {
+.pocket-sheet .window-content {
   padding: 0;
   background: radial-gradient(130% 90% at 50% -8%, #221b10 0%, var(--ms-bg) 55%);
   color: var(--ms-fg);
