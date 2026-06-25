@@ -1,18 +1,24 @@
-{{!-- ActionListBlock: title + tappable item rows. Tap → useItem; long-press/right-click → openItem. --}}
+{{!-- ActionListBlock: tappable item rows. Tap → useItem; long-press/right-click → openItem;
+      optional glyph/img, prepared toggle (toggleItem), cost chip, and badge. --}}
 <section class="ms-block ms-actionlist">
-  <h3 class="ms-list-title">{{title}}</h3>
+  {{#if hasTitle}}<h3 class="ms-list-title">{{title}}</h3>{{/if}}
   <ul class="ms-list">
     {{#each items}}
-      <li>
-        <button type="button" class="ms-action-row"
-                data-action="useItem" data-item-id="{{itemId}}"
-                data-secondary-action="openItem">
-          {{#if img}}<img class="ms-action-img" src="{{img}}" alt="">{{/if}}
-          <span class="ms-action-text">
-            <span class="ms-action-name">{{name}}</span>
-            {{#if subtitle}}<span class="ms-action-sub">{{subtitle}}</span>{{/if}}
-          </span>
-        </button>
+      <li class="ms-action-row" data-action="useItem" data-item-id="{{this.itemId}}"
+          data-secondary-action="openItem">
+        {{#if this.hasImg}}<img class="ms-action-img" src="{{this.img}}" alt="">{{/if}}
+        {{#if this.hasGlyph}}<span class="ms-action-glyph">{{this.glyph}}</span>{{/if}}
+        <span class="ms-action-text">
+          <span class="ms-action-name">{{this.name}}</span>
+          {{#if this.hasSub}}<span class="ms-action-sub">{{this.sub}}</span>{{/if}}
+        </span>
+        {{#if this.hasToggle}}
+          <button type="button" class="ms-action-toggle{{#if this.toggleOn}} ms-on{{/if}}"
+                  data-action="toggleItem" data-item-id="{{this.itemId}}"
+                  aria-label="Toggle prepared"></button>
+        {{/if}}
+        {{#if this.hasCost}}<span class="ms-action-cost{{#if this.costMuted}} ms-cost-muted{{/if}}">{{this.cost}}</span>{{/if}}
+        {{#if this.hasBadge}}<span class="ms-action-badge">{{this.badge}}</span>{{/if}}
       </li>
     {{/each}}
   </ul>

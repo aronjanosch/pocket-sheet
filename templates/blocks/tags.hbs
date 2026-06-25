@@ -1,0 +1,10 @@
+{{!-- TagsBlock: toggleable conditions with an optional value. Emits toggleTag. --}}
+<section class="ms-tags">
+  {{#each items}}
+    <button type="button" class="ms-tag{{#if this.active}} ms-tag-on{{/if}}"
+            data-action="toggleTag" data-key="{{this.key}}">
+      <span class="ms-tag-label">{{this.label}}</span>
+      {{#if this.hasValue}}<span class="ms-tag-val">{{this.value}}</span>{{/if}}
+    </button>
+  {{/each}}
+</section>

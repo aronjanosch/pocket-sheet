@@ -1,21 +1,58 @@
-<div class="ms-root ms-state-{{state}}">
+<div class="ms-root ms-state-{{state}}" style="{{themeStyle}}">
 
   {{#if isOk}}
+    <div class="ms-flourish"></div>
+
     <header class="ms-identity">
-      {{#if identity.img}}<img class="ms-portrait" src="{{identity.img}}" alt="">{{/if}}
+      {{#if identity.img}}
+        <img class="ms-portrait" src="{{identity.img}}" alt="">
+      {{else}}
+        <div class="ms-portrait ms-portrait-mono">{{identity.initials}}</div>
+      {{/if}}
       <div class="ms-id-text">
         <h2 class="ms-name">{{identity.name}}</h2>
         {{#if identity.subtitle}}<p class="ms-subtitle">{{identity.subtitle}}</p>{{/if}}
       </div>
+      {{#if topStats.length}}
+        <div class="ms-topstats">
+          {{#each topStats}}
+            <div class="ms-topstat">
+              <span class="ms-topstat-label">{{this.label}}</span>
+              <span class="ms-topstat-value{{#if this.accent}} ms-accented{{/if}}">{{this.value}}</span>
+            </div>
+          {{/each}}
+        </div>
+      {{/if}}
     </header>
-    <div class="ms-blocks">
+
+    <nav class="ms-tabs">
+      {{#each tabs}}
+        <button type="button" class="ms-tab{{#if this.active}} ms-tab-active{{/if}}"
+                data-action="selectTab" data-tab="{{this.id}}">{{this.label}}</button>
+      {{/each}}
+    </nav>
+
+    <div class="ms-body">
       {{#each blocks}}{{> (lookup this "partial")}}{{/each}}
     </div>
+
+    {{#if primary}}
+      <div class="ms-tray">
+        <button type="button" class="ms-primary" data-action="primary">
+          <span class="ms-primary-label">{{primary.label}}</span>
+          {{#if primary.sub}}<span class="ms-primary-sub">{{primary.sub}}</span>{{/if}}
+        </button>
+      </div>
+    {{/if}}
   {{/if}}
 
   {{#if isEmpty}}
     <header class="ms-identity">
-      {{#if identity.img}}<img class="ms-portrait" src="{{identity.img}}" alt="">{{/if}}
+      {{#if identity.img}}
+        <img class="ms-portrait" src="{{identity.img}}" alt="">
+      {{else}}
+        <div class="ms-portrait ms-portrait-mono">{{identity.initials}}</div>
+      {{/if}}
       <div class="ms-id-text"><h2 class="ms-name">{{identity.name}}</h2></div>
     </header>
     <div class="ms-message">

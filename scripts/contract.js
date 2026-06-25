@@ -1,15 +1,18 @@
 /**
- * Mobile Sheet — adapter contract (Phase 0).
+ * Mobile Sheet — adapter contract (v2: themed, tabbed block vocabulary).
  *
  * JSDoc typedefs only. No runtime logic lives here. This file is the single
  * source of truth for the interface every system adapter implements and the
- * normalized view model the shell renders. See specs/phase-0-foundations.md.
+ * normalized view model the shell renders. See specs/ and the "Modular Sheet
+ * Architecture" design.
  *
- * Two halves:
+ * One shell, every system. The shell renders ONLY this normalized view model and
+ * never reads `actor.system`. A system ships *data + one accent color* — never
+ * CSS. Two halves:
  *   - read: `getViewModel(actor)` is PURE — actor -> ViewModel, no DOM, no writes.
  *   - act:  `invoke(actor, intent)` delegates each intent to the system's own
- *           document methods (rolls / item use / update). The shell never owns
- *           dice math, chat formatting, or sync — those stay with Foundry/system.
+ *           document methods (rolls / item use / update / status effects). The
+ *           shell never owns dice math, chat formatting, or sync.
  */
 
 // ---------------------------------------------------------------------------
@@ -44,11 +47,12 @@
 
 /**
  * @typedef {object} Intent
- * @property {"rollStat"|"useItem"|"adjustResource"|"openItem"} type
- * @property {string} [key]    Stat key (rollStat) or resource key (adjustResource).
- * @property {string} [itemId] Item id (useItem / openItem).
- * @property {number} [delta]  Resource step (adjustResource), e.g. +1 / -1.
- * @property {Event}  [event]  Forwarded DOM event for modifier-key / dialog behavior.
+ * @property {"rollStat"|"useItem"|"openItem"|"adjustResource"|"toggleTag"|"toggleItem"|"primary"} type
+ * @property {string} [key]     Stat key (rollStat), resource key (adjustResource), or tag key (toggleTag).
+ * @property {string} [itemId]  Item id (useItem / openItem / toggleItem).
+ * @property {number} [delta]   Resource step (adjustResource), e.g. +1 / -1.
+ * @property {string} [statKey] Active stat key the shell passes with a `primary` action.
+ * @property {Event}  [event]   Forwarded DOM event for modifier-key / dialog behavior.
  */
 
 // ---------------------------------------------------------------------------
@@ -57,65 +61,144 @@
 
 /**
  * @typedef {object} ViewModel
- * @property {Identity} identity
- * @property {Block[]}  blocks   Ordered; shell renders top-to-bottom.
+ * @property {Theme}     [theme]    The one style a system owns: its accent color.
+ * @property {Identity}  identity
+ * @property {TopStat[]} [topStats] Small header stat boxes (Evasion/Prof, AC/Perc…).
+ * @property {Tab[]}     tabs       Ordered tabs; the shell renders the active one's blocks.
+ * @property {Primary}   [primary]  Sticky bottom action button (Duality Roll / Roll d20).
+ */
+
+/**
+ * The only theming an adapter does. The shell maps these to CSS custom
+ * properties; everything else (layout, type, spacing, gestures) is shell-owned.
+ * @typedef {object} Theme
+ * @property {string} accent       e.g. "#d8b35c".
+ * @property {string} [accentDeep] Darker accent for gradients; defaults from accent.
  */
 
 /**
  * @typedef {object} Identity
  * @property {string} name
- * @property {string} img
- * @property {string} [subtitle] e.g. "Level 2 Guardian".
+ * @property {string} [img]      Portrait; if absent the shell shows `initials`.
+ * @property {string} [initials] Fallback monogram, e.g. "AV".
+ * @property {string} [subtitle] e.g. "Level 3 Guardian · Stalwart".
  */
 
 /**
- * @typedef {ResourceBlock|StatGridBlock|ActionListBlock|InfoBlock} Block
+ * A small boxed stat in the header.
+ * @typedef {object} TopStat
+ * @property {string} label
+ * @property {string|number} value
+ * @property {boolean} [accent]  Tint the value with the system accent.
  */
 
 /**
- * A tappable resource with a stepper and optional bar (HP, Stress, Hope, ...).
+ * @typedef {object} Tab
+ * @property {string}  id      Stable key (shell tracks the active tab by id).
+ * @property {string}  label   Display-ready (adapter-localized).
+ * @property {Block[]} blocks  Ordered; shell renders top-to-bottom when active.
+ */
+
+/**
+ * The sticky primary action. The shell fires a `primary` intent on tap and, if a
+ * selectable stat is active, overrides `sub` with that stat's label/value.
+ * @typedef {object} Primary
+ * @property {string} label    e.g. "✦ Duality Roll".
+ * @property {string} [sub]    e.g. "STR +2" (default; shell may override).
+ */
+
+/**
+ * @typedef {ResourceBlock|StatGridBlock|TagsBlock|ActionListBlock|InfoBlock|HeadingBlock} Block
+ */
+
+/**
+ * A value/max tracker shown as a bar, pips, diamonds, or parallel tracks.
  * @typedef {object} ResourceBlock
  * @property {"resource"} kind
- * @property {string} key            Used by the adjustResource intent.
- * @property {string} label          Display-ready (adapter-localized).
+ * @property {string} key                 Used by the adjustResource intent.
+ * @property {string} label               Display-ready (adapter-localized).
+ * @property {ResourceTone} [tone]        Shell-owned role color. Default "accent".
  * @property {number} value
- * @property {number|null} max       null -> shell renders a maxless stepper (no bar).
- * @property {boolean} [editable]    Show the +/- stepper.
+ * @property {number|null} max            null -> maxless stepper, no bar/pips.
+ * @property {"bar"|"pips"|"diamond"|"tracks"} [display] Default "bar".
+ * @property {number} [temp]              Temp HP -> "+N TEMP" badge.
+ * @property {string} [die]               e.g. "d10" badge (5e hit dice).
+ * @property {ResourceTrack[]} [tracks]   For display:"tracks" (spell slots).
+ * @property {boolean} [editable]         Show the +/- stepper. Default true.
+ *
+ * @typedef {"hp"|"stress"|"armor"|"accent"|"info"} ResourceTone
+ *
+ * @typedef {object} ResourceTrack
+ * @property {string} label
+ * @property {number} value
+ * @property {number} max
  */
 
 /**
- * A grid of stats; rollable entries are tappable (traits / abilities).
+ * A grid of stat tiles. Rollable ones tap to roll; selectable ones tap to arm
+ * the primary action (Daggerheart's two-step Duality Roll).
  * @typedef {object} StatGridBlock
  * @property {"statGrid"} kind
+ * @property {number} [cols]      Columns. Default 3.
  * @property {StatEntry[]} stats
  *
  * @typedef {object} StatEntry
- * @property {string} [key]          Stat key for the rollStat intent (rollable only).
- * @property {string} label          Display-ready.
+ * @property {string} [key]       Stat key for rollStat / primary (rollable or selectable).
+ * @property {string} label       Display-ready.
  * @property {number|string} value
- * @property {boolean} rollable
+ * @property {number|string} [sub] Secondary value, e.g. ability score under the modifier.
+ * @property {"T"|"E"|"M"|"L"} [rank] Proficiency rank (PF2: Trained/Expert/Master/Legendary).
+ * @property {boolean} [save]     Show a save dot.
+ * @property {boolean} [rollable] Tap -> rollStat.
+ * @property {boolean} [select]   Tap -> arm the primary action (shell-local active state).
  */
 
 /**
- * A list of usable items (weapons, spells, features, domain cards).
+ * Toggleable conditions, each with an optional value (Frightened 2, Exhaustion 1).
+ * @typedef {object} TagsBlock
+ * @property {"tags"} kind
+ * @property {Tag[]} items
+ *
+ * @typedef {object} Tag
+ * @property {string} key        Used by the toggleTag intent (e.g. a status id).
+ * @property {string} label      Display-ready.
+ * @property {number|string} [value] Optional stack/level shown beside the label.
+ * @property {boolean} [active]   Currently applied.
+ */
+
+/**
+ * A list of usable rows (weapons, spells, domain cards, actions).
  * @typedef {object} ActionListBlock
  * @property {"actionList"} kind
- * @property {string} title          Display-ready.
+ * @property {string} [title]    Display-ready (or precede with a HeadingBlock).
  * @property {ActionItem[]} items
  *
  * @typedef {object} ActionItem
  * @property {string} itemId
  * @property {string} name
- * @property {string} [img]
- * @property {string} [subtitle]
+ * @property {string} [sub]      Secondary line (domain · level, school, range…).
+ * @property {string} [img]      Thumbnail; falls back to `glyph`.
+ * @property {string} [glyph]    Short symbol when there's no img (⚔ ✦ ✷ ➶).
+ * @property {string} [cost]     Cost chip text (e.g. "✦1", "FREE", "◆").
+ * @property {boolean} [costMuted] Render the cost chip muted (free/spent).
+ * @property {string} [badge]    Right-side badge (damage, "LV 2", "AT WILL").
+ * @property {boolean} [toggle]  Prepared/equipped toggle -> toggleItem intent.
  */
 
 /**
- * Read-only text (notes, experiences).
+ * Read-only text (notes, experiences, background).
  * @typedef {object} InfoBlock
  * @property {"info"} kind
- * @property {string} title          Display-ready.
- * @property {string} html           Pre-enriched AND escaped by the adapter (safe).
+ * @property {string} [title]    Display-ready.
+ * @property {string} html       Pre-enriched AND escaped by the adapter (safe).
+ */
+
+/**
+ * A section label that precedes grids/lists, with an optional count.
+ * @typedef {object} HeadingBlock
+ * @property {"heading"} kind
+ * @property {string} label
+ * @property {string|number} [count] e.g. "4 in loadout".
  */
 
 export {};
