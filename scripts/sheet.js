@@ -175,6 +175,7 @@ export class PocketSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
       hasMax,
       toneClass,
       editable: b.editable !== false,
+      slidable: b.editable !== false && hasMax,
       temp: b.temp != null ? `+${b.temp} TEMP` : "",
       hasTemp: b.temp != null,
       die: b.die ?? "",
@@ -201,7 +202,7 @@ export class PocketSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
 
   #pips(value, max) {
     const out = [];
-    for (let i = 0; i < (max ?? 0); i++) out.push({ filled: i < value });
+    for (let i = 0; i < (max ?? 0); i++) out.push({ filled: i < value, thumb: value > 0 && i === value - 1 });
     return out;
   }
 
@@ -352,6 +353,111 @@ export class PocketSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
       el.addEventListener("touchmove", cancel, { passive: true });
       el.addEventListener("touchcancel", cancel, { passive: true });
     }
+
+    this.#wireResourceSliders(root);
+  }
+
+  /**
+   * Slide-to-set: drag a resource track with a finger to set its value by
+   * position. Painted live (optimistic), committed once on release via a
+   * setResource intent — never one update per move.
+   */
+  #wireResourceSliders(root) {
+    for (const track of root.querySelectorAll("[data-resource-drag]")) {
+      const max = Number(track.dataset.max) || 0;
+      const key = track.dataset.key;
+      const section = track.closest(".ms-resource");
+      const curEl = section?.querySelector(".ms-rv-cur");
+      const fill = track.querySelector(".ms-bar-fill");
+      const knob = track.querySelector(".ms-slider-knob");
+      const pips = track.querySelectorAll(".ms-pip");
+
+      const label = section?.querySelector(".ms-resource-label")?.textContent ?? "";
+      const DRAG_THRESHOLD = 6; // px before a press becomes a slide
+
+      let dragging = false;
+      let moved = false;
+      let downX = 0;
+      let startV = 0;
+      let v = 0;
+
+      const valueFromEvent = (ev) => {
+        const rect = track.getBoundingClientRect();
+        const ratio = Math.max(0, Math.min(1, (ev.clientX - rect.left) / rect.width));
+        return Math.max(0, Math.min(max, Math.round(ratio * max)));
+      };
+      const paint = (nv) => {
+        v = nv;
+        if (curEl) curEl.textContent = String(nv);
+        const pct = max > 0 ? (nv / max) * 100 : 0;
+        if (fill) fill.style.width = `${pct}%`;
+        if (knob) knob.style.left = `${pct}%`;
+        pips.forEach((p, i) => {
+          p.classList.toggle("ms-pip-on", i < nv);
+          p.classList.toggle("ms-pip-thumb", nv > 0 && i === nv - 1);
+        });
+      };
+      const down = (ev) => {
+        dragging = true;
+        moved = false;
+        downX = ev.clientX;
+        startV = Number(curEl?.textContent) || 0;
+        v = startV;
+        try { track.setPointerCapture(ev.pointerId); } catch (_) {}
+      };
+      const move = (ev) => {
+        if (!dragging) return;
+        if (!moved && Math.abs(ev.clientX - downX) < DRAG_THRESHOLD) return;
+        moved = true; // crossed the threshold → this is a slide, not a tap
+        ev.preventDefault();
+        paint(valueFromEvent(ev));
+      };
+      const up = (ev) => {
+        if (!dragging) return;
+        dragging = false;
+        try { track.releasePointerCapture(ev.pointerId); } catch (_) {}
+        if (moved) {
+          if (v !== startV) this.#dispatch({ type: "setResource", key, value: v, event: ev });
+        } else {
+          this.#openResourceDialog(key, label); // a tap → +/- amount dialog
+        }
+      };
+      const cancel = (ev) => {
+        dragging = false;
+        try { track.releasePointerCapture(ev.pointerId); } catch (_) {}
+      };
+
+      track.addEventListener("pointerdown", down);
+      track.addEventListener("pointermove", move);
+      track.addEventListener("pointerup", up);
+      track.addEventListener("pointercancel", cancel);
+    }
+  }
+
+  /**
+   * Tap a resource track → a small dialog to add or subtract an amount. Dispatches
+   * a delta via adjustResource (the adapter clamps and writes). Shell-owned UI; no
+   * system knowledge.
+   */
+  async #openResourceDialog(key, label) {
+    const DialogV2 = foundry.applications?.api?.DialogV2;
+    if (!DialogV2) return;
+    const safe = Handlebars.escapeExpression(label);
+    const content = `<div class="ms-amt-dialog">
+      <label class="ms-amt-label">${safe}</label>
+      <input type="number" name="amt" class="ms-amt-input" inputmode="numeric" min="0" step="1" value="1" autofocus>
+    </div>`;
+    const read = (dialog) => Math.abs(Number(dialog?.element?.querySelector('input[name="amt"]')?.value) || 0);
+    const delta = await DialogV2.wait({
+      window: { title: label, icon: "fa-solid fa-plus-minus" },
+      content,
+      rejectClose: false,
+      buttons: [
+        { action: "sub", label: game.i18n.localize("MOBILE_SHEET.dialog.subtract"), callback: (e, b, d) => -read(d) },
+        { action: "add", label: game.i18n.localize("MOBILE_SHEET.dialog.add"), default: true, callback: (e, b, d) => read(d) }
+      ]
+    }).catch(() => null);
+    if (delta) this.#dispatch({ type: "adjustResource", key, delta });
   }
 
   // --- live re-render --------------------------------------------------------

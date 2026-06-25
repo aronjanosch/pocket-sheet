@@ -236,12 +236,17 @@ function topStats(actor) {
   return out;
 }
 
+function writeResource(actor, key, next) {
+  const res = actor.system?.resources?.[key];
+  if (!res) return;
+  const clamped = clamp(next, 0, resolveMax(key, res));
+  return actor.update({ [`system.resources.${key}.value`]: clamped });
+}
+
 function adjustResource(actor, key, delta) {
   const res = actor.system?.resources?.[key];
   if (!res) return;
-  const max = resolveMax(key, res);
-  const next = clamp((res.value ?? 0) + delta, 0, max);
-  return actor.update({ [`system.resources.${key}.value`]: next });
+  return writeResource(actor, key, (res.value ?? 0) + delta);
 }
 
 // --- adapter -----------------------------------------------------------------
@@ -309,6 +314,8 @@ export const daggerheartAdapter = {
         return actor.items.get(intent.itemId)?.sheet?.render(true);
       case "adjustResource":
         return adjustResource(actor, intent.key, intent.delta);
+      case "setResource":
+        return writeResource(actor, intent.key, intent.value);
       case "toggleTag":
         return actor.toggleStatusEffect?.(intent.key);
       default:
