@@ -1,18 +1,14 @@
-{{!-- StatGridBlock: grid of stats; rollable ones are tappable. Emits rollStat. --}}
-<section class="ms-block ms-statgrid">
-  <div class="ms-grid">
-    {{#each stats}}
-      {{#if rollable}}
-        <button type="button" class="ms-stat ms-rollable" data-action="rollStat" data-key="{{key}}">
-          <span class="ms-stat-label">{{label}}</span>
-          <span class="ms-stat-value">{{value}}</span>
-        </button>
-      {{else}}
-        <div class="ms-stat">
-          <span class="ms-stat-label">{{label}}</span>
-          <span class="ms-stat-value">{{value}}</span>
-        </div>
-      {{/if}}
-    {{/each}}
-  </div>
+{{!-- StatGridBlock: tiles of stats. rollable → rollStat; select → arm primary (selectStat). --}}
+<section class="ms-statgrid" style="grid-template-columns:repeat({{cols}},1fr)">
+  {{#each stats}}
+    <button type="button"
+            class="ms-stat{{#unless this.tappable}} ms-stat-static{{/unless}}{{#if this.active}} ms-stat-active{{/if}}"
+            {{#if this.tappable}}data-action="{{this.actionName}}" data-key="{{this.key}}"{{else}}disabled{{/if}}>
+      <span class="ms-stat-label">{{this.label}}</span>
+      <span class="ms-stat-value">{{this.value}}</span>
+      {{#if this.hasSub}}<span class="ms-stat-sub">{{this.sub}}</span>{{/if}}
+      {{#if this.hasRank}}<span class="ms-stat-rank {{this.rankClass}}">{{this.rankName}}</span>{{/if}}
+      {{#if this.save}}<span class="ms-stat-dot"></span>{{/if}}
+    </button>
+  {{/each}}
 </section>

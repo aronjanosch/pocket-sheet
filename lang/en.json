@@ -12,11 +12,27 @@
   "MOBILE_SHEET.settings.devStub.name": "Developer: stub adapter",
   "MOBILE_SHEET.settings.devStub.hint": "Register a dummy adapter that renders one of each block kind, for testing the shell without a real system adapter. Reload after changing.",
 
+  "MOBILE_SHEET.settings.activation.name": "Activation",
+  "MOBILE_SHEET.settings.activation.hint": "When to auto-open the mobile sheet on this device. Reload after changing.",
+  "MOBILE_SHEET.settings.activation.auto": "Auto (open on phones/tablets)",
+  "MOBILE_SHEET.settings.activation.always": "Always (also on desktop)",
+  "MOBILE_SHEET.settings.activation.never": "Never (open it manually)",
+
+  "MOBILE_SHEET.launcher.fabTitle": "Open mobile sheet",
+  "MOBILE_SHEET.launcher.selectTitle": "Choose a character",
+
   "MOBILE_SHEET.daggerheart.label.level": "Level",
 
-  "MOBILE_SHEET.daggerheart.resource.hitPoints": "HP",
+  "MOBILE_SHEET.daggerheart.tab.vitals": "Vitals",
+  "MOBILE_SHEET.daggerheart.tab.features": "Features",
+  "MOBILE_SHEET.daggerheart.tab.loadout": "Loadout",
+  "MOBILE_SHEET.daggerheart.tab.items": "Items",
+  "MOBILE_SHEET.daggerheart.tab.bio": "Bio",
+
+  "MOBILE_SHEET.daggerheart.resource.hitPoints": "Hit Points",
   "MOBILE_SHEET.daggerheart.resource.stress": "Stress",
   "MOBILE_SHEET.daggerheart.resource.hope": "Hope",
+  "MOBILE_SHEET.daggerheart.resource.armor": "Armor",
 
   "MOBILE_SHEET.daggerheart.trait.agility": "Agility",
   "MOBILE_SHEET.daggerheart.trait.strength": "Strength",
@@ -26,14 +42,32 @@
   "MOBILE_SHEET.daggerheart.trait.knowledge": "Knowledge",
 
   "MOBILE_SHEET.daggerheart.stat.evasion": "Evasion",
-  "MOBILE_SHEET.daggerheart.stat.proficiency": "Proficiency",
+  "MOBILE_SHEET.daggerheart.stat.proficiency": "Prof",
   "MOBILE_SHEET.daggerheart.stat.thresholds": "Thresholds",
 
-  "MOBILE_SHEET.daggerheart.list.weapons": "Weapons",
-  "MOBILE_SHEET.daggerheart.list.domainCards": "Domain Cards",
-  "MOBILE_SHEET.daggerheart.list.features": "Features",
-  "MOBILE_SHEET.daggerheart.list.consumables": "Consumables",
+  "MOBILE_SHEET.daggerheart.heading.traits": "Traits",
+  "MOBILE_SHEET.daggerheart.heading.domainCards": "Domain Cards",
+  "MOBILE_SHEET.daggerheart.heading.equipped": "Equipped",
+  "MOBILE_SHEET.daggerheart.heading.features": "Features",
+  "MOBILE_SHEET.daggerheart.heading.inventory": "Items",
+  "MOBILE_SHEET.daggerheart.heading.gold": "Gold",
+  "MOBILE_SHEET.daggerheart.heading.background": "Background",
+
+  "MOBILE_SHEET.daggerheart.loadout.count": "{count} in loadout",
+
+  "MOBILE_SHEET.daggerheart.gold.handfuls": "Handfuls",
+  "MOBILE_SHEET.daggerheart.gold.bags": "Bags",
+  "MOBILE_SHEET.daggerheart.gold.chests": "Chests",
+
+  "MOBILE_SHEET.daggerheart.type.ancestry": "Ancestry",
+  "MOBILE_SHEET.daggerheart.type.community": "Community",
+  "MOBILE_SHEET.daggerheart.type.class": "Class",
+  "MOBILE_SHEET.daggerheart.type.subclass": "Subclass",
+  "MOBILE_SHEET.daggerheart.type.feature": "Feature",
+
   "MOBILE_SHEET.daggerheart.list.experiences": "Experiences",
+
+  "MOBILE_SHEET.daggerheart.primary.duality": "✦ Duality Roll",
 
   "MOBILE_SHEET.daggerheart.unsupported.version": "Requires Daggerheart 2.x — your version is older.",
   "MOBILE_SHEET.daggerheart.unsupported.api": "This Daggerheart version isn't supported by Mobile Sheet yet."

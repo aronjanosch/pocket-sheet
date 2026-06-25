@@ -15,6 +15,7 @@
 import { MODULE_ID } from "./constants.js";
 import { register, resolve } from "./registry.js";
 import { MobileSheet, registerMobileSheet } from "./sheet.js";
+import { registerActivationSettings, activateLauncher } from "./launcher.js";
 import { stubAdapter } from "./stub-adapter.js";
 import { daggerheartAdapter } from "../adapters/daggerheart.js";
 
@@ -34,19 +35,14 @@ Hooks.once("init", () => {
   const module = game.modules.get(MODULE_ID);
   if (module) module.api = api;
 
-  // Bar-fill percentage helper (shell-internal; clamps to 0–100).
-  Handlebars.registerHelper("msPct", (value, max) => {
-    const m = Number(max);
-    if (!m || m <= 0) return 0;
-    return Math.max(0, Math.min(100, (Number(value) / m) * 100));
-  });
-
   // Pre-register block partials so the template's dynamic `{{> path}}` resolves.
   foundry.applications.handlebars.loadTemplates([
     `modules/${MODULE_ID}/templates/blocks/resource.hbs`,
     `modules/${MODULE_ID}/templates/blocks/statGrid.hbs`,
+    `modules/${MODULE_ID}/templates/blocks/tags.hbs`,
     `modules/${MODULE_ID}/templates/blocks/actionList.hbs`,
-    `modules/${MODULE_ID}/templates/blocks/info.hbs`
+    `modules/${MODULE_ID}/templates/blocks/info.hbs`,
+    `modules/${MODULE_ID}/templates/blocks/heading.hbs`
   ]);
 
   // Dev-only: a flag to register the stub adapter for shell testing (Phase 1 §8).
@@ -58,6 +54,9 @@ Hooks.once("init", () => {
     type: Boolean,
     default: false
   });
+
+  // Activation layer: when/where to auto-present the sheet (Phase 3).
+  registerActivationSettings();
 
   // Built-in adapters self-register here.
   register(daggerheartAdapter);
@@ -79,4 +78,7 @@ Hooks.once("ready", () => {
   }
 
   registerMobileSheet();
+
+  // Phase 3: install the launcher and auto-open on mobile.
+  activateLauncher();
 });

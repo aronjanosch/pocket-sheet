@@ -1,12 +1,33 @@
-{{!-- ResourceBlock: label, value/max, optional bar, +/- stepper. Emits adjustResource. --}}
-<section class="ms-block ms-resource" data-key="{{key}}">
+{{!-- ResourceBlock: bar / pips / diamond / tracks variants + +/- stepper. Emits adjustResource. --}}
+<section class="ms-block ms-resource {{toneClass}}" data-key="{{key}}">
   <div class="ms-resource-head">
-    <span class="ms-label">{{label}}</span>
-    <span class="ms-resource-value">{{value}}{{#if max}} / {{max}}{{/if}}</span>
+    <span class="ms-resource-label">{{label}}</span>
+    <span class="ms-resource-value">{{value}}{{#if hasMax}}<span class="ms-resource-max">/{{max}}</span>{{/if}}</span>
+    {{#if hasDie}}<span class="ms-resource-die">{{die}}</span>{{/if}}
+    {{#if hasTemp}}<span class="ms-resource-temp">{{temp}}</span>{{/if}}
   </div>
 
-  {{#if max}}
-    <div class="ms-bar"><div class="ms-bar-fill" style="width: {{msPct value max}}%"></div></div>
+  {{#if isBar}}
+    <div class="ms-bar"><div class="ms-bar-fill" style="width:{{pct}}%"></div></div>
+  {{/if}}
+
+  {{#if isPips}}
+    <div class="ms-pips{{#if small}} ms-pips-small{{/if}}{{#if diamond}} ms-pips-diamond{{/if}}">
+      {{#each pips}}<span class="ms-pip{{#if this.filled}} ms-pip-on{{/if}}"></span>{{/each}}
+    </div>
+  {{/if}}
+
+  {{#if isTracks}}
+    <div class="ms-tracks">
+      {{#each tracks}}
+        <div class="ms-track">
+          <span class="ms-track-label">{{this.label}}</span>
+          <div class="ms-pips ms-pips-mini">
+            {{#each this.pips}}<span class="ms-pip{{#if this.filled}} ms-pip-on{{/if}}"></span>{{/each}}
+          </div>
+        </div>
+      {{/each}}
+    </div>
   {{/if}}
 
   {{#if editable}}

@@ -1,8 +1,8 @@
 /**
- * Mobile Sheet — dev-only stub adapter (Phase 1 §8).
+ * Mobile Sheet — dev-only stub adapter.
  *
- * Returns a static view model with one of each block kind so the shell can be
- * built and reviewed before any real adapter exists. `invoke` only logs.
+ * Returns a static v2 view model exercising every block kind / variant so the
+ * shell can be built and reviewed without a real system adapter. `invoke` logs.
  *
  * NOT shipped behavior: registered only when the client setting
  * `mobile-sheet.devStub` is enabled. Its systemId is set to the active system
@@ -23,29 +23,43 @@ export const stubAdapter = {
       itemId: i.id,
       name: i.name,
       img: i.img,
-      subtitle: i.type
+      sub: i.type,
+      glyph: "✦"
     }));
     return {
-      identity: {
-        name: actor?.name ?? "Stub Hero",
-        img: actor?.img,
-        subtitle: "Stub adapter"
-      },
-      blocks: [
-        { kind: "resource", key: "hp", label: "HP", value: 7, max: 10, editable: true },
-        { kind: "resource", key: "hope", label: "Hope", value: 3, max: null, editable: true },
+      theme: { accent: "#9d8ce0", accentDeep: "#6f5ec7" },
+      identity: { name: actor?.name ?? "Stub Hero", img: actor?.img, initials: "SH", subtitle: "Stub adapter" },
+      topStats: [{ label: "AC", value: 18 }, { label: "PROF", value: "+3", accent: true }],
+      tabs: [
         {
-          kind: "statGrid",
-          stats: [
-            { key: "agility", label: "Agility", value: 2, rollable: true },
-            { key: "strength", label: "Strength", value: 1, rollable: true },
-            { key: "finesse", label: "Finesse", value: 0, rollable: true },
-            { label: "Evasion", value: 11, rollable: false }
+          id: "vitals",
+          label: "Vitals",
+          blocks: [
+            { kind: "tags", items: [{ key: "a", label: "Frightened", active: true }, { key: "b", label: "Poisoned" }, { key: "c", label: "Exhaustion", value: 1 }] },
+            { kind: "resource", key: "hp", label: "Hit Points", tone: "hp", value: 34, max: 47, display: "bar", temp: 5 },
+            { kind: "resource", key: "hope", label: "Hope", tone: "accent", value: 3, max: 6, display: "diamond" },
+            { kind: "resource", key: "armor", label: "Armor", tone: "armor", value: 1, max: 3, display: "pips" },
+            { kind: "resource", key: "slots", label: "Spell Slots", display: "tracks", value: 0, max: null, editable: false, tracks: [{ label: "LV 1", value: 4, max: 4 }, { label: "LV 2", value: 2, max: 3 }] },
+            { kind: "heading", label: "Abilities" },
+            {
+              kind: "statGrid",
+              stats: [
+                { key: "str", label: "Str", value: "+3", sub: 16, save: true, select: true },
+                { key: "dex", label: "Dex", value: "+1", sub: 12, rollable: true },
+                { label: "Con", value: "+2", sub: 14 }
+              ]
+            },
+            { kind: "heading", label: "Items", count: 3 },
+            { kind: "actionList", items }
           ]
         },
-        { kind: "actionList", title: "Weapons", items },
-        { kind: "info", title: "Notes", html: "<p>Stub adapter render check.</p>" }
-      ]
+        {
+          id: "notes",
+          label: "Bio",
+          blocks: [{ kind: "info", title: "Notes", html: "<p>Stub adapter render check.</p>" }]
+        }
+      ],
+      primary: { label: "⚄ Roll d20", sub: "Initiative +1" }
     };
   },
 

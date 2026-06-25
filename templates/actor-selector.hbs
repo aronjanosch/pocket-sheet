@@ -1,0 +1,15 @@
+{{!-- ActorSelector: tap a character to open its mobile sheet. System-agnostic (name/img only). --}}
+<div class="ms-root ms-selector-root">
+  <ul class="ms-list">
+    {{#each actors}}
+      <li>
+        <button type="button" class="ms-action-row" data-action="pick" data-actor-id="{{id}}">
+          {{#if img}}<img class="ms-action-img" src="{{img}}" alt="">{{/if}}
+          <span class="ms-action-text">
+            <span class="ms-action-name">{{name}}</span>
+          </span>
+        </button>
+      </li>
+    {{/each}}
+  </ul>
+</div>
