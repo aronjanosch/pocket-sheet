@@ -1,0 +1,270 @@
+/*
+ * Mobile Sheet — mobile-first base styles (Phase 1).
+ *
+ * Single column, generous tap targets, thumb-reachable actions. Colors live in
+ * CSS custom properties so adapters/themes can override them later.
+ */
+
+.mobile-sheet {
+  /* Colors — overridable by adapters/themes. */
+  --ms-bg: #1b1c22;
+  --ms-fg: #f3f3f5;
+  --ms-muted: #9a9bab;
+  --ms-accent: #5b8def;
+  --ms-surface: #2a2c36;
+  --ms-border: #ffffff1f;
+
+  /* Spacing / sizing. */
+  --ms-gap: 0.75rem;
+  --ms-radius: 0.75rem;
+  --ms-tap-min: 44px; /* minimum touch target */
+}
+
+/* The ApplicationV2 window content host. Desktop: cap width so it stays phone-like. */
+.mobile-sheet .window-content {
+  padding: 0;
+  background: var(--ms-bg);
+  color: var(--ms-fg);
+}
+
+.ms-root {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ms-gap);
+  min-height: 100%;
+  max-height: 100dvh;
+  overflow-y: auto;
+  padding: var(--ms-gap);
+  padding-bottom: max(var(--ms-gap), env(safe-area-inset-bottom));
+  box-sizing: border-box;
+  font-size: 1rem;
+  line-height: 1.3;
+}
+
+/* --- identity header ------------------------------------------------------ */
+
+.ms-identity {
+  display: flex;
+  align-items: center;
+  gap: var(--ms-gap);
+}
+
+.ms-portrait {
+  width: 56px;
+  height: 56px;
+  border-radius: var(--ms-radius);
+  object-fit: cover;
+  border: 1px solid var(--ms-border);
+  flex: 0 0 auto;
+}
+
+.ms-name {
+  margin: 0;
+  font-size: 1.25rem;
+  font-weight: 700;
+}
+
+.ms-subtitle {
+  margin: 0.1rem 0 0;
+  color: var(--ms-muted);
+  font-size: 0.85rem;
+}
+
+/* --- blocks --------------------------------------------------------------- */
+
+.ms-blocks {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ms-gap);
+}
+
+.ms-block {
+  background: var(--ms-surface);
+  border: 1px solid var(--ms-border);
+  border-radius: var(--ms-radius);
+  padding: var(--ms-gap);
+}
+
+.ms-label,
+.ms-list-title {
+  font-weight: 600;
+}
+
+.ms-list-title {
+  margin: 0 0 0.5rem;
+  font-size: 1rem;
+}
+
+.ms-muted {
+  color: var(--ms-muted);
+}
+
+/* --- resource block ------------------------------------------------------- */
+
+.ms-resource-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+}
+
+.ms-resource-value {
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+}
+
+.ms-bar {
+  margin: 0.5rem 0;
+  height: 8px;
+  border-radius: 999px;
+  background: #00000040;
+  overflow: hidden;
+}
+
+.ms-bar-fill {
+  height: 100%;
+  background: var(--ms-accent);
+  border-radius: inherit;
+  transition: width 0.15s ease;
+}
+
+.ms-stepper {
+  display: flex;
+  gap: var(--ms-gap);
+  margin-top: 0.5rem;
+}
+
+.ms-step {
+  flex: 1 1 0;
+  min-height: var(--ms-tap-min);
+  font-size: 1.5rem;
+  line-height: 1;
+  border-radius: var(--ms-radius);
+  border: 1px solid var(--ms-border);
+  background: #ffffff10;
+  color: var(--ms-fg);
+  cursor: pointer;
+}
+
+.ms-step:active {
+  background: var(--ms-accent);
+}
+
+/* --- stat grid ------------------------------------------------------------ */
+
+.ms-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(88px, 1fr));
+  gap: var(--ms-gap);
+}
+
+.ms-stat {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.15rem;
+  min-height: var(--ms-tap-min);
+  padding: 0.5rem;
+  border-radius: var(--ms-radius);
+  border: 1px solid var(--ms-border);
+  background: #ffffff08;
+}
+
+.ms-stat-label {
+  font-size: 0.75rem;
+  color: var(--ms-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.ms-stat-value {
+  font-size: 1.4rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+button.ms-stat.ms-rollable {
+  color: var(--ms-fg);
+  cursor: pointer;
+}
+
+button.ms-stat.ms-rollable:active {
+  border-color: var(--ms-accent);
+  background: var(--ms-accent);
+}
+
+/* --- action list ---------------------------------------------------------- */
+
+.ms-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.ms-action-row {
+  display: flex;
+  align-items: center;
+  gap: var(--ms-gap);
+  width: 100%;
+  min-height: var(--ms-tap-min);
+  padding: 0.5rem;
+  text-align: left;
+  border-radius: var(--ms-radius);
+  border: 1px solid var(--ms-border);
+  background: #ffffff08;
+  color: var(--ms-fg);
+  cursor: pointer;
+}
+
+.ms-action-row:active {
+  border-color: var(--ms-accent);
+}
+
+.ms-action-img {
+  width: 36px;
+  height: 36px;
+  border-radius: 0.4rem;
+  object-fit: cover;
+  flex: 0 0 auto;
+}
+
+.ms-action-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.ms-action-name {
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ms-action-sub {
+  font-size: 0.8rem;
+  color: var(--ms-muted);
+}
+
+/* --- info block ----------------------------------------------------------- */
+
+.ms-info-body {
+  font-size: 0.9rem;
+}
+
+.ms-info-body :first-child { margin-top: 0; }
+.ms-info-body :last-child { margin-bottom: 0; }
+
+/* --- non-ok states -------------------------------------------------------- */
+
+.ms-message {
+  margin: auto 0;
+  padding: 2rem var(--ms-gap);
+  text-align: center;
+}
+
+.ms-message p {
+  margin: 0.25rem 0;
+}

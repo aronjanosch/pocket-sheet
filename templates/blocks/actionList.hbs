@@ -1,0 +1,19 @@
+{{!-- ActionListBlock: title + tappable item rows. Tap → useItem; long-press/right-click → openItem. --}}
+<section class="ms-block ms-actionlist">
+  <h3 class="ms-list-title">{{title}}</h3>
+  <ul class="ms-list">
+    {{#each items}}
+      <li>
+        <button type="button" class="ms-action-row"
+                data-action="useItem" data-item-id="{{itemId}}"
+                data-secondary-action="openItem">
+          {{#if img}}<img class="ms-action-img" src="{{img}}" alt="">{{/if}}
+          <span class="ms-action-text">
+            <span class="ms-action-name">{{name}}</span>
+            {{#if subtitle}}<span class="ms-action-sub">{{subtitle}}</span>{{/if}}
+          </span>
+        </button>
+      </li>
+    {{/each}}
+  </ul>
+</section>

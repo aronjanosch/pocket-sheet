@@ -1,0 +1,20 @@
+{{!-- ResourceBlock: label, value/max, optional bar, +/- stepper. Emits adjustResource. --}}
+<section class="ms-block ms-resource" data-key="{{key}}">
+  <div class="ms-resource-head">
+    <span class="ms-label">{{label}}</span>
+    <span class="ms-resource-value">{{value}}{{#if max}} / {{max}}{{/if}}</span>
+  </div>
+
+  {{#if max}}
+    <div class="ms-bar"><div class="ms-bar-fill" style="width: {{msPct value max}}%"></div></div>
+  {{/if}}
+
+  {{#if editable}}
+    <div class="ms-stepper">
+      <button type="button" class="ms-step" data-action="adjustResource" data-key="{{key}}" data-delta="-1"
+              aria-label="Decrease {{label}}">&minus;</button>
+      <button type="button" class="ms-step" data-action="adjustResource" data-key="{{key}}" data-delta="1"
+              aria-label="Increase {{label}}">+</button>
+    </div>
+  {{/if}}
+</section>

@@ -1,0 +1,8 @@
+# OS cruft
+.DS_Store
+
+# build output — release assets, not source
+dist/
+
+# CC-BY-NC reference copy of the commercial module (not part of this MIT project)
+example/

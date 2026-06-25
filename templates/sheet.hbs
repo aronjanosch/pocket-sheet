@@ -1,0 +1,40 @@
+<div class="ms-root ms-state-{{state}}">
+
+  {{#if isOk}}
+    <header class="ms-identity">
+      {{#if identity.img}}<img class="ms-portrait" src="{{identity.img}}" alt="">{{/if}}
+      <div class="ms-id-text">
+        <h2 class="ms-name">{{identity.name}}</h2>
+        {{#if identity.subtitle}}<p class="ms-subtitle">{{identity.subtitle}}</p>{{/if}}
+      </div>
+    </header>
+    <div class="ms-blocks">
+      {{#each blocks}}{{> (lookup this "partial")}}{{/each}}
+    </div>
+  {{/if}}
+
+  {{#if isEmpty}}
+    <header class="ms-identity">
+      {{#if identity.img}}<img class="ms-portrait" src="{{identity.img}}" alt="">{{/if}}
+      <div class="ms-id-text"><h2 class="ms-name">{{identity.name}}</h2></div>
+    </header>
+    <div class="ms-message">
+      <p>{{localize "MOBILE_SHEET.state.empty"}}</p>
+    </div>
+  {{/if}}
+
+  {{#if isNoAdapter}}
+    <div class="ms-message">
+      <p>{{localize "MOBILE_SHEET.state.noAdapter"}}</p>
+      <p class="ms-muted">{{localize "MOBILE_SHEET.state.noAdapterHint"}}</p>
+    </div>
+  {{/if}}
+
+  {{#if isUnsupported}}
+    <div class="ms-message">
+      <p>{{localize "MOBILE_SHEET.state.unsupported"}}</p>
+      {{#if reason}}<p class="ms-muted">{{reason}}</p>{{/if}}
+    </div>
+  {{/if}}
+
+</div>
