@@ -375,7 +375,24 @@ export class PocketSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
   }
 
   static #onOpenItem(event, target) {
-    return this.#dispatch({ type: "openItem", itemId: target.dataset.itemId, event });
+    return this.#openItem(target.dataset.itemId, event);
+  }
+
+  /**
+   * Open an item: prefer the adapter's in-sheet detail panel; fall back to the
+   * system's desktop sheet when the adapter returns null (or has no detail at
+   * all). getItemDetail is pure — a throw degrades to the fallback, never breaks.
+   */
+  #openItem(itemId, event) {
+    const adapter = resolve(game.system.id);
+    let detail = null;
+    try {
+      detail = adapter?.getItemDetail?.(this.actor, itemId) ?? null;
+    } catch (err) {
+      console.error(`${MODULE_ID} | getItemDetail threw`, err);
+    }
+    if (detail) return this.#openDetailSheet(detail);
+    return this.#dispatch({ type: "openItem", itemId, event });
   }
 
   static #onToChat(event, target) {
@@ -455,7 +472,7 @@ export class PocketSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
     for (const el of root.querySelectorAll("[data-secondary-action='openItem']")) {
       const open = (ev) => {
         ev.preventDefault();
-        this.#dispatch({ type: "openItem", itemId: el.dataset.itemId, event: ev });
+        this.#openItem(el.dataset.itemId, ev);
       };
       el.addEventListener("contextmenu", open);
 
@@ -636,6 +653,63 @@ export class PocketSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
     wrap.querySelector(".ms-sheet-done").addEventListener("click", commitAndClose);
     wrap.querySelector(".ms-sheet-close").addEventListener("click", commitAndClose);
     wrap.querySelector(".ms-sheet-backdrop").addEventListener("click", commitAndClose);
+  }
+
+  /**
+   * Item-detail bottom sheet: header (glyph · tag · name), a badge grid, an
+   * optional description, and a column of action buttons. Each button fires the
+   * action's `intent` (useItem / equip / vault / toChat / rollTrait) then closes
+   * — delegation lives in the adapter, the shell only forwards. The adapter has
+   * already escaped every field (`desc` is safe HTML); badges/labels still pass
+   * through escapeExpression as defence in depth.
+   */
+  #openDetailSheet(detail) {
+    const esc = (s) => Handlebars.escapeExpression(s ?? "");
+    const tone = (t) => (t ? ` ${TONE_CLASS[t] ?? ""}` : "");
+
+    const badges = (detail.badges ?? [])
+      .map((b) => `
+        <div class="ms-detail-badge${tone(b.tone)}">
+          <span class="ms-detail-badge-label">${esc(b.label)}</span>
+          <span class="ms-detail-badge-value">${esc(b.value)}</span>
+        </div>`)
+      .join("");
+
+    const actions = (detail.actions ?? [])
+      .map((a, i) => `
+        <button type="button" class="ms-detail-act ms-detail-act-${a.variant ?? "default"}" data-i="${i}">
+          <span class="ms-detail-act-label">${esc(a.label)}</span>
+          ${a.sub ? `<span class="ms-detail-act-sub">${esc(a.sub)}</span>` : ""}
+        </button>`)
+      .join("");
+
+    const html = `
+      <div class="ms-grab"></div>
+      <div class="ms-detail-head">
+        <span class="ms-detail-glyph${tone(detail.iconTone)}">${esc(detail.glyph)}</span>
+        <span class="ms-detail-id">
+          ${detail.tag ? `<span class="ms-detail-tag${tone(detail.iconTone)}">${esc(detail.tag)}</span>` : ""}
+          <span class="ms-detail-name">${esc(detail.name)}</span>
+        </span>
+        <button type="button" class="ms-sheet-close" aria-label="Close">✕</button>
+      </div>
+      ${badges ? `<div class="ms-detail-badges">${badges}</div>` : ""}
+      ${detail.desc ? `<div class="ms-detail-desc">${detail.desc}</div>` : ""}
+      ${actions ? `<div class="ms-detail-actions">${actions}</div>` : ""}`;
+
+    const mounted = this.#mountSheet(html);
+    if (!mounted) return;
+    const { wrap, close } = mounted;
+    wrap.querySelector(".ms-sheet-panel")?.classList.add("ms-detail-panel");
+
+    wrap.querySelector(".ms-sheet-close").addEventListener("click", close);
+    wrap.querySelector(".ms-sheet-backdrop").addEventListener("click", close);
+    (detail.actions ?? []).forEach((a, i) => {
+      wrap.querySelector(`.ms-detail-act[data-i="${i}"]`)?.addEventListener("click", (ev) => {
+        close();
+        this.#dispatch({ type: a.intent, itemId: a.itemId, uuid: a.uuid, key: a.key, event: ev });
+      });
+    });
   }
 
   /**

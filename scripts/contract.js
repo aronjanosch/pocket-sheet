@@ -33,6 +33,10 @@
  * @property {(actor: Actor, intent: Intent) => Promise<void>} invoke
  *   Translate an abstract intent into the system's own method. Delegates —
  *   never reimplements dice, chat, or sync. Unknown intent types: no-op.
+ * @property {(actor: Actor, itemId: string) => (ItemDetail | null)} [getItemDetail]
+ *   PURE (like getViewModel): build an in-sheet detail panel for one owned item.
+ *   Returning `null` lets the shell fall back to the system's desktop item sheet.
+ *   Optional — adapters without it always get the desktop fallback.
  */
 
 /**
@@ -241,6 +245,39 @@
  * @property {string} [label]            Optional caption (e.g. "Damage Thresholds").
  * @property {{label:string}[]} segments Zone labels, in order.
  * @property {{value:number|string}[]} bounds Boundary values shown between segments.
+ */
+
+/**
+ * The in-sheet item detail panel — the phone-native replacement for popping the
+ * system's desktop item sheet. The shell renders header (glyph · tag · name),
+ * a badge grid, an optional pre-escaped description, and a column of action
+ * buttons. Each action dispatches its `intent` (reusing the same intents item
+ * rows already fire), so delegation stays in the adapter / system.
+ * @typedef {object} ItemDetail
+ * @property {string} glyph              Short symbol shown in the header tile (⚔ ✦ 🛡 ◈).
+ * @property {ResourceTone} [iconTone]   Shell-owned tone for the glyph tile. Default accent.
+ * @property {string} [accent]           Reserved; the shell currently ignores per-item accents.
+ * @property {string} tag                Kind label above the name (e.g. "Weapon").
+ * @property {string} name               Display-ready item name.
+ * @property {ItemBadge[]} badges        Stat grid (Domain/Level, Trait/Range/Damage…).
+ * @property {string} [desc]             Pre-enriched AND escaped by the adapter (safe HTML).
+ * @property {ItemAction[]} actions      Action buttons, in display order.
+ *
+ * @typedef {object} ItemBadge
+ * @property {string} label              Display-ready caption.
+ * @property {string|number} value       Display-ready value.
+ * @property {ResourceTone} [tone]       Tint the value (e.g. damage in the hp tone). Default accent.
+ *
+ * A detail-panel action. The shell fires an Intent of type `intent` carrying the
+ * supplied `itemId` / `uuid` / `key`; the adapter resolves it like any other.
+ * @typedef {object} ItemAction
+ * @property {string} label              Display-ready button text.
+ * @property {Intent["type"]} intent     Intent type to dispatch (useItem / equip / vault / toChat / rollTrait…).
+ * @property {"primary"|"ghost"|"danger"|"default"} [variant] Visual emphasis. Default "default".
+ * @property {string} [sub]              Secondary line under the label.
+ * @property {string} [itemId]           Forwarded as intent.itemId.
+ * @property {string} [uuid]             Forwarded as intent.uuid (embedded action).
+ * @property {string} [key]              Forwarded as intent.key.
  */
 
 export {};

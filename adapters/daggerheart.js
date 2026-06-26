@@ -499,6 +499,160 @@ async function experienceToChat(actor, id) {
   });
 }
 
+// --- item detail panel -------------------------------------------------------
+
+/**
+ * Plain-text, escaped item description. getItemDetail is pure/sync so it cannot
+ * run the system's async enricher; we strip markup to readable text and escape
+ * it (same caveat as bioTab). VERIFY: switch to pre-enriched HTML once a
+ * render-time enrich seam exists.
+ */
+function enrichDesc(item) {
+  const raw = item.system?.description ?? item.system?.notes;
+  const text = typeof raw === "string" ? raw : raw?.value;
+  if (!text || typeof text !== "string") return "";
+  const plain = text.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim();
+  return plain ? `<p>${Handlebars.escapeExpression(plain)}</p>` : "";
+}
+
+/** Drop empty/missing pairs; stringify values. */
+function badges(pairs) {
+  return pairs
+    .filter((p) => p && p.value != null && p.value !== "")
+    .map((p) => ({ label: p.label, value: String(p.value), tone: p.tone }));
+}
+
+/** Post-to-chat action, only when the item supports it. Variant set per kind. */
+function chatAction(item, variant) {
+  return can(item, "toChat")
+    ? { label: L("detail.chat"), intent: "toChat", itemId: item.id, variant }
+    : null;
+}
+
+/** Equip / Unequip action for gear. */
+function equipAction(item, variant) {
+  return {
+    label: item.system?.equipped ? L("detail.unequip") : L("detail.equip"),
+    intent: "equip",
+    itemId: item.id,
+    variant
+  };
+}
+
+/** "Weapon · Equipped" / "Armor · Worn" — append a status suffix to the kind tag. */
+function statusTag(base, suffix) {
+  return suffix ? `${base} · ${suffix}` : base;
+}
+
+/**
+ * PURE: one owned item → an ItemDetail panel, or null to fall back to the
+ * system's desktop sheet (features, unknown types). Delegation note: "Recall
+ * costs Stress", "Use heals 1d4" etc. are SYSTEM effects — we only fire the
+ * intent and never assert the cost in the UI (the mock fakes those subs; we don't).
+ */
+function getItemDetail(actor, itemId) {
+  const item = actor?.items?.get(itemId);
+  if (!item) return null;
+  const tag = typeLabel(item.type);
+  const desc = enrichDesc(item);
+  const sys = item.system ?? {};
+
+  // Domain card — type id varies across versions; detect by its vault flag too.
+  if (item.type === "domainCard" || sys.inVault != null || sys.recallCost != null) {
+    const recall = num(sys.recallCost ?? sys.recall) ?? 0;
+    const inVault = !!sys.inVault;
+    const domain = sys.domain ?? "";
+    return {
+      glyph: "✦",
+      iconTone: "accent",
+      tag: statusTag(typeLabel("domainCard"), domain),
+      name: item.name,
+      desc,
+      badges: badges([
+        { label: L("badge.domain"), value: domain, tone: "accent" },
+        { label: L("badge.level"), value: num(sys.level) },
+        { label: L("badge.recall"), value: recall > 0 ? `↺ ${recall}` : L("badge.free"), tone: recall > 0 ? "stress" : "info" }
+      ]),
+      // Loadout → Chat is the prominent action; Vaulted → Recall is.
+      actions: inVault
+        ? [
+            { label: L("detail.recall"), intent: "vault", itemId: item.id, variant: "primary" },
+            chatAction(item, "ghost")
+          ].filter(Boolean)
+        : [
+            chatAction(item, "primary"),
+            { label: L("detail.toVault"), intent: "vault", itemId: item.id, variant: "default" }
+          ].filter(Boolean)
+    };
+  }
+
+  if (item.type === "weapon") {
+    const damage = num(sys.damage) ?? sys.damage?.value;
+    const dtype = sys.damageType ?? sys.damage?.type ?? "";
+    return {
+      glyph: "⚔",
+      iconTone: "accent",
+      tag: statusTag(tag, sys.equipped ? L("detail.statusEquipped") : ""),
+      name: item.name,
+      desc,
+      badges: badges([
+        { label: L("badge.trait"), value: sys.trait ?? "" },
+        { label: L("badge.range"), value: sys.range ?? "" },
+        { label: L("badge.damage"), value: [damage, dtype].filter(Boolean).join(" "), tone: "accent" },
+        { label: L("badge.burden"), value: num(sys.burden) }
+      ]),
+      actions: [
+        can(item, "use") ? { label: L("detail.rollAttack"), intent: "useItem", itemId: item.id, variant: "primary" } : null,
+        equipAction(item, "default"),
+        chatAction(item, "ghost")
+      ].filter(Boolean)
+    };
+  }
+
+  if (item.type === "armor") {
+    const score = num(sys.baseScore ?? sys.score);
+    const major = num(sys.baseThresholds?.major ?? sys.major);
+    const severe = num(sys.baseThresholds?.severe ?? sys.severe);
+    return {
+      glyph: "🛡",
+      iconTone: "armor",
+      tag: statusTag(tag, sys.equipped ? L("detail.statusWorn") : ""),
+      name: item.name,
+      desc,
+      badges: badges([
+        { label: L("badge.score"), value: score, tone: "armor" },
+        { label: L("badge.major"), value: major },
+        { label: L("badge.severe"), value: severe }
+      ]),
+      actions: [equipAction(item, "primary"), chatAction(item, "ghost")].filter(Boolean)
+    };
+  }
+
+  if (item.type === "consumable" || item.type === "loot") {
+    const qty = num(sys.quantity);
+    const consumable = item.type === "consumable";
+    return {
+      glyph: "◈",
+      iconTone: "info",
+      tag,
+      name: item.name,
+      desc,
+      badges: badges([
+        { label: L("badge.type"), value: tag },
+        { label: L("badge.qty"), value: typeof qty === "number" ? `× ${qty}` : "" }
+      ]),
+      actions: [
+        consumable && can(item, "use")
+          ? { label: L("detail.use"), intent: "useItem", itemId: item.id, variant: "primary" }
+          : null,
+        chatAction(item, consumable ? "ghost" : "primary")
+      ].filter(Boolean)
+    };
+  }
+
+  return null; // features etc → desktop sheet fallback
+}
+
 // --- adapter -----------------------------------------------------------------
 
 /** @type {PocketSheetAdapter} */
@@ -518,6 +672,11 @@ export const daggerheartAdapter = {
     if (!okVersion) return { ok: false, reason: L("unsupported.version") };
 
     return { ok: true };
+  },
+
+  /** PURE: one owned item → an in-sheet detail panel, or null for the desktop fallback. */
+  getItemDetail(actor, itemId) {
+    return getItemDetail(actor, itemId);
   },
 
   /** PURE: actor.system → themed, tabbed view model. No async, no DOM, no writes. */
