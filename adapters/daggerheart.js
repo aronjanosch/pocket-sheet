@@ -192,7 +192,9 @@ function domainCardRow(item) {
   const domain = item.system?.domain ?? "";
   const level = num(item.system?.level);
   const sub = [domain, level != null ? `${L("label.level")} ${level}` : null].filter(Boolean).join(" · ");
-  const row = { itemId: item.id, name: item.name, img: item.img, glyph: "✦", sub, use: can(item, "use") };
+  // Tapping a card opens its detail panel (use:false → openable), like a feature row.
+  // The card's own spend/roll actions stay reachable as inline quick-select buttons + in the panel.
+  const row = { itemId: item.id, name: item.name, img: item.img, glyph: "✦", sub, use: false };
   const recall = num(item.system?.recallCost ?? item.system?.recall);
   if (typeof recall === "number" && recall > 0) { row.cost = `↺${recall}`; row.costMuted = true; }
   attachActions(row, item);
@@ -224,7 +226,8 @@ function weaponRow(w) {
   const row = {
     itemId: w.id, name: w.name, img: w.img, glyph: "⚔",
     sub: [trait, range].filter(Boolean).join(" · "),
-    use: can(w, "use")
+    // Tap opens the detail panel (like a feature); attack/equip live in the panel + inline buttons.
+    use: false
   };
   if (damage) row.badge = String(damage);
   attachActions(row, w);
@@ -234,7 +237,7 @@ function weaponRow(w) {
 
 function armorRow(a) {
   const score = num(a.system?.baseScore ?? a.system?.score);
-  const row = { itemId: a.id, name: a.name, img: a.img, glyph: "🛡", use: can(a, "use") };
+  const row = { itemId: a.id, name: a.name, img: a.img, glyph: "🛡", use: false };
   if (score != null) row.badge = String(score);
   attachActions(row, a);
   row.controls = [{ kind: "equip", active: !!a.system?.equipped }, ...chatControl(a)];
@@ -246,7 +249,8 @@ function stuffRow(i) {
   const row = {
     itemId: i.id, name: i.name, img: i.img, glyph: "◈",
     sub: typeof qty === "number" && qty > 1 ? `×${qty}` : "",
-    use: can(i, "use")
+    // Tap opens the detail panel (like a feature); use/chat live in the panel + inline buttons.
+    use: false
   };
   attachActions(row, i);
   const controls = chatControl(i);
@@ -1125,6 +1129,11 @@ function getItemDetail(actor, itemId) {
     const recall = num(sys.recallCost ?? sys.recall) ?? 0;
     const inVault = !!sys.inVault;
     const domain = sys.domain ?? "";
+    // The card's own actions (spend/roll) — each reuses the useItem(uuid) path so the
+    // system's spend/roll popups are caught into pocket sheets, like a feature panel.
+    const cardActions = actionsOf(item)
+      .filter((a) => a?.uuid)
+      .map((a) => ({ label: a.name ?? L("detail.use"), intent: "useItem", uuid: a.uuid, variant: "default" }));
     return {
       glyph: "✦",
       iconTone: "accent",
@@ -1136,14 +1145,16 @@ function getItemDetail(actor, itemId) {
         { label: L("badge.level"), value: num(sys.level) },
         { label: L("badge.recall"), value: recall > 0 ? `↺ ${recall}` : L("badge.free"), tone: recall > 0 ? "stress" : "info" }
       ]),
-      // Loadout → Chat is the prominent action; Vaulted → Recall is.
+      // Loadout → card actions lead, then Chat / To Vault. Vaulted → Recall leads.
       actions: inVault
         ? [
             { label: L("detail.recall"), intent: "vault", itemId: item.id, variant: "primary" },
+            ...cardActions,
             chatAction(item, "ghost")
           ].filter(Boolean)
         : [
-            chatAction(item, "primary"),
+            ...cardActions.map((a, i) => (i === 0 ? { ...a, variant: "primary" } : a)),
+            chatAction(item, cardActions.length ? "ghost" : "primary"),
             { label: L("detail.toVault"), intent: "vault", itemId: item.id, variant: "default" }
           ].filter(Boolean)
     };
