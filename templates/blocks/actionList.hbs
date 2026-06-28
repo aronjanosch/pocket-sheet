@@ -6,8 +6,8 @@
   <ul class="ms-list">
     {{#each items}}
       <li class="ms-action-row">
-        <div class="ms-action-main{{#unless this.useable}} ms-action-static{{/unless}}"
-             {{#if this.useable}}data-action="useItem"{{/if}}
+        <div class="ms-action-main{{#unless this.useable}}{{#unless this.openable}} ms-action-static{{/unless}}{{/unless}}"
+             {{#if this.useable}}data-action="useItem"{{else if this.openable}}data-action="openItem"{{/if}}
              data-secondary-action="openItem" data-item-id="{{this.itemId}}">
           {{#if this.hasImg}}<img class="ms-action-img" src="{{this.img}}" alt="">{{/if}}
           {{#if this.hasGlyph}}<span class="ms-action-glyph">{{this.glyph}}</span>{{/if}}

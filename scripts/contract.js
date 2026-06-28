@@ -34,8 +34,10 @@
  *   Translate an abstract intent into the system's own method. Delegates —
  *   never reimplements a SYSTEM's dice/chat/sync. Unknown intent types: no-op.
  *   Usually resolves to nothing (the actor/item update flows back via hooks); a
- *   few intents (rollDice) resolve to a result the shell may display inline,
- *   since the chat log can be hidden in phone sheet-only mode.
+ *   few intents resolve to a result the shell displays inline, since the chat log
+ *   can be hidden in phone sheet-only mode: `rollDice` → the evaluated Roll;
+ *   `rollTrait` / `useItem` (a roll action) → a {@link RollResult} for the banner,
+ *   or null when the use had no roll.
  * @property {(actor: Actor, itemId: string) => (ItemDetail | null)} [getItemDetail]
  *   PURE (like getViewModel): build an in-sheet detail panel for one owned item.
  *   Returning `null` lets the shell fall back to the system's desktop item sheet.
@@ -46,6 +48,11 @@
  *   documents; never writes. The shell then fires a `useItem` (or `rollTrait`) intent
  *   carrying the player's picks. Optional — adapters without it get the system's own
  *   popups on use.
+ * @property {(actor: Actor, key: string) => (RestConfig | null)} [getRestConfig]
+ *   Inspect what a rest ("short"/"long") offers, so the shell can open a pocket rest
+ *   sheet instead of the system's desktop downtime dialog. Reads settings/documents;
+ *   never writes. The shell then fires a `rest` intent carrying the player's `picks`.
+ *   Returning `null` (or omitting it) falls back to a bare `rest` intent (desktop dialog).
  */
 
 /**
@@ -76,7 +83,26 @@
  * @property {string[]} [bonusOff]              Bonus-effect ids the player opted out of for this roll (rollTrait / useItem).
  * @property {boolean} [spend]                  Mark a useItem as a non-roll resource spend (suppresses the spend / action-picker dialog).
  * @property {Record<string, number>} [scale]  Per-cost extra scale steps for a spend action (useItem, keyed by cost key).
+ * @property {Record<string, Record<string, number>>} [picks] Rest-sheet selections (rest), `{ [category]: { [moveKey]: count } }`.
  * @property {Event}  [event]   Forwarded DOM event for modifier-key / dialog behavior.
+ */
+
+/**
+ * A finished roll, normalized for the shell's transient result banner. The adapter
+ * maps the system's own roll result into this; the shell renders it generically
+ * (tinting by `outcome`, no system vocabulary) and auto-dismisses it. The chat log
+ * can be hidden in phone sheet-only mode, so this is how a player sees the outcome.
+ * @typedef {object} RollResult
+ * @property {number} total              Grand total (including modifiers).
+ * @property {"crit"|"hope"|"fear"|"flat"} outcome  Drives the banner's accent.
+ * @property {string} [label]            Display-ready outcome text (adapter-localized).
+ * @property {RollResultDie[]} [dice]    Notable per-die values (e.g. Hope / Fear).
+ * @property {boolean} [success]         Pass/fail vs a difficulty, when one applied.
+ *
+ * @typedef {object} RollResultDie
+ * @property {string} label              Display-ready die label.
+ * @property {number|string} value       Display-ready die value.
+ * @property {ResourceTone} [tone]       Shell-owned tint for the value.
  */
 
 // ---------------------------------------------------------------------------
@@ -173,6 +199,27 @@
  * @property {boolean} [bonus] @property {boolean} [reaction]
  * @property {RollExperience[]} [experiences] @property {RollBonusEffect[]} [bonusEffects]
  * @property {{value:number, max:number|null}} [hope]   (duality — see RollOptions.)
+ *
+ * What a rest offers — returned by `getRestConfig` so the shell can open a pocket rest
+ * sheet. The player picks moves (gated per category by `max`), and the shell folds the
+ * choices into a `rest` intent's `picks`.
+ * @typedef {object} RestConfig
+ * @property {string} title              Display-ready sheet header (e.g. "Short Rest").
+ * @property {string} key                The rest key, echoed back in the intent ("short"/"long").
+ * @property {RestCategory[]} categories Move groups in budget for this rest.
+ *
+ * @typedef {object} RestCategory
+ * @property {string} key                Stable category id (forwarded in intent.picks).
+ * @property {string} [label]            Display-ready category label (shell may localize by key).
+ * @property {number} max                How many moves the player may take from this category.
+ * @property {RestMove[]} moves          Pickable moves.
+ *
+ * @typedef {object} RestMove
+ * @property {string} key                Stable move id (forwarded in intent.picks).
+ * @property {string} name               Display-ready move name.
+ * @property {string} [icon]             FontAwesome class, e.g. "fa-solid fa-bandage".
+ * @property {string} [img]              Thumbnail image path.
+ * @property {string} [desc]             RAW move HTML; the shell enriches it at render.
  *
  * @typedef {object} SpendCost
  * @property {string} key      Resource key (forwarded in intent.scale for scalable costs).
@@ -277,7 +324,12 @@
  * @typedef {object} InfoBlock
  * @property {"info"} kind
  * @property {string} [title]    Display-ready.
- * @property {string} html       Pre-enriched AND escaped by the adapter (safe).
+ * @property {string} html       Either safe HTML the adapter already escaped, OR — when
+ *   `enrich` is set — RAW system HTML the shell enriches at render (inline rolls, links,
+ *   formatting) since getViewModel is sync/pure and cannot run the async enricher.
+ * @property {boolean} [enrich]  Enrich `html` at render time instead of treating it as safe.
+ * @property {string} [relativeToUuid] Document uuid to enrich relative to (rolls/@UUID
+ *   links resolve against it). Defaults to the actor when omitted.
  */
 
 /**
@@ -328,7 +380,10 @@
  * @property {string} tag                Kind label above the name (e.g. "Weapon").
  * @property {string} name               Display-ready item name.
  * @property {ItemBadge[]} badges        Stat grid (Domain/Level, Trait/Range/Damage…).
- * @property {string} [desc]             Pre-enriched AND escaped by the adapter (safe HTML).
+ * @property {string} [desc]             Safe HTML the adapter escaped, OR — when `descEnrich`
+ *   is set — RAW system HTML the shell enriches before mounting the panel.
+ * @property {boolean} [descEnrich]      Enrich `desc` at render time instead of treating it as safe.
+ * @property {string} [descRelativeToUuid] Document uuid to enrich `desc` relative to (the item).
  * @property {ItemAction[]} actions      Action buttons, in display order.
  *
  * @typedef {object} ItemBadge

@@ -118,6 +118,12 @@ export class PocketSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
       .filter((b) => KNOWN_KINDS.has(b?.kind))
       .map((b) => this.#massage(b));
 
+    // Enrich any info block the adapter flagged (it can't — getViewModel is sync/pure).
+    // Render-time, async, shell-owned: core Foundry enrichment, no system knowledge.
+    for (const b of blocks) {
+      if (b.kind === "info" && b.enrich && b.html) b.html = await this.#enrich(b.html, b.relativeToUuid);
+    }
+
     const theme = this.#theme(vm.theme);
     const primary = this.#primary(vm.primary, active.blocks ?? []);
     this.#rollOptions = vm.primary?.rollOptions ?? null;
@@ -195,7 +201,7 @@ export class PocketSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
       case "scale": return { ...this.#scale(b), partial };
       case "heading": return { kind: b.kind, partial, label: b.label, count: b.count != null ? String(b.count) : "", hasCount: b.count != null };
       case "info":
-      default: return { kind: b.kind, partial, title: b.title, hasTitle: !!b.title, html: b.html ?? "" };
+      default: return { kind: b.kind, partial, title: b.title, hasTitle: !!b.title, html: b.html ?? "", enrich: !!b.enrich, relativeToUuid: b.relativeToUuid };
     }
   }
 
@@ -314,6 +320,9 @@ export class PocketSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
           hasToggle: i.toggle != null,
           toggleOn: !!i.toggle,
           useable: i.use !== false,
+          // Non-useable rows that still have a detail panel open it on a primary tap
+          // (so a feature row isn't a dead tap target on a phone). Long-press always opens.
+          openable: i.use === false && !!i.itemId,
           controls,
           hasControls: controls.length > 0,
           actions,
@@ -363,6 +372,28 @@ export class PocketSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
       if (i < segments.length - 1 && bounds[i]) parts.push({ isBound: true, value: String(bounds[i].value ?? "") });
     });
     return { kind: "scale", label: b.label ?? "", hasLabel: !!b.label, parts };
+  }
+
+  /**
+   * Enrich raw system HTML at render time (inline rolls, @UUID links, formatting) —
+   * the async step the adapter's pure getViewModel/getItemDetail can't do. Resolves
+   * relative to the given uuid (the item, for item-relative rolls/links) or the actor.
+   * Core Foundry API only, no system knowledge. Falls back to the raw HTML on failure.
+   */
+  async #enrich(html, uuid) {
+    try {
+      const TextEditor = foundry.applications.ux.TextEditor.implementation;
+      let relativeTo = this.actor;
+      if (uuid) relativeTo = (await fromUuid(uuid)) ?? this.actor;
+      return await TextEditor.enrichHTML(html, {
+        relativeTo,
+        secrets: false,
+        rollData: relativeTo?.getRollData?.() ?? {}
+      });
+    } catch (err) {
+      console.warn(`${MODULE_ID} | enrichHTML failed`, err);
+      return html;
+    }
   }
 
   // --- intent dispatch ------------------------------------------------------
@@ -421,7 +452,24 @@ export class PocketSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
   }
 
   static #onRest(event, target) {
-    return this.#dispatch({ type: "rest", key: target.dataset.key, event });
+    return this.#openRest(target.dataset.key, event);
+  }
+
+  /**
+   * Open the pocket rest sheet, catching the system's desktop downtime dialog. Asks the
+   * adapter what the rest offers; with a config, opens the move picker; without one,
+   * falls back to a bare `rest` intent (the system's own dialog).
+   */
+  async #openRest(key, event) {
+    const adapter = resolve(game.system.id);
+    let cfg = null;
+    try {
+      cfg = await adapter?.getRestConfig?.(this.actor, key);
+    } catch (err) {
+      console.error(`${MODULE_ID} | getRestConfig threw`, err);
+    }
+    if (!cfg || !cfg.categories?.length) return this.#dispatch({ type: "rest", key, event });
+    return this.#openRestSheet(cfg, event);
   }
 
   static #onDeathMove(event, target) {
@@ -684,9 +732,14 @@ export class PocketSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
    * already escaped every field (`desc` is safe HTML); badges/labels still pass
    * through escapeExpression as defence in depth.
    */
-  #openDetailSheet(detail) {
+  async #openDetailSheet(detail) {
     const esc = (s) => Handlebars.escapeExpression(s ?? "");
     const tone = (t) => (t ? ` ${TONE_CLASS[t] ?? ""}` : "");
+
+    // Enrich the description (raw system HTML) before mounting; safe pre-escaped descs
+    // (descEnrich unset) pass through untouched.
+    let descHtml = detail.desc ?? "";
+    if (descHtml && detail.descEnrich) descHtml = await this.#enrich(descHtml, detail.descRelativeToUuid);
 
     const badges = (detail.badges ?? [])
       .map((b) => `
@@ -715,7 +768,7 @@ export class PocketSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
         <button type="button" class="ms-sheet-close" aria-label="Close">✕</button>
       </div>
       ${badges ? `<div class="ms-detail-badges">${badges}</div>` : ""}
-      ${detail.desc ? `<div class="ms-detail-desc">${detail.desc}</div>` : ""}
+      ${descHtml ? `<div class="ms-detail-desc">${descHtml}</div>` : ""}
       ${actions ? `<div class="ms-detail-actions">${actions}</div>` : ""}`;
 
     const mounted = this.#mountSheet(html);
@@ -904,8 +957,8 @@ export class PocketSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
       title: label || L("title"),
       event,
       opts: this.#rollOptions ?? {},
-      onSubmit: (c) =>
-        this.#dispatch({
+      onSubmit: async (c) => {
+        const res = await this.#dispatch({
           type: "rollTrait",
           key,
           advantage: c.advantage,
@@ -915,7 +968,9 @@ export class PocketSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
           reaction: c.reaction,
           bonusOff: c.bonusOff,
           event: c.event
-        })
+        });
+        if (res) this.#showRollBanner(res);
+      }
     });
   }
 
@@ -943,8 +998,8 @@ export class PocketSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
         event,
         opts: cfg,
         advantage: cfg.advantage ?? "neutral",
-        onSubmit: (c) =>
-          this.#dispatch({
+        onSubmit: async (c) => {
+          const res = await this.#dispatch({
             type: "useItem",
             uuid: cfg.uuid,
             advantage: c.advantage,
@@ -953,7 +1008,9 @@ export class PocketSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
             bonusOff: c.bonusOff,
             bonus: c.bonus,
             event: c.event
-          })
+          });
+          if (res) this.#showRollBanner(res);
+        }
       });
     }
     if (cfg.kind === "spend") return this.#openSpendSheet(cfg, event);
@@ -1058,6 +1115,111 @@ export class PocketSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
   }
 
   /**
+   * Rest sheet: pick a rest's downtime moves (replaces the system's desktop Downtime
+   * dialog). Each category is capped at its `max`; tap a move to take it (again for
+   * multiples), long-press / right-click to drop one. On Take, fires a `rest` intent
+   * with the picks — the adapter posts the system's downtime card and refreshes uses.
+   */
+  async #openRestSheet(cfg, event) {
+    const esc = (s) => Handlebars.escapeExpression(s ?? "");
+    const L = (k) => game.i18n.localize(`MOBILE_SHEET.rest.${k}`);
+
+    // Enrich move descriptions (actor-relative) before building markup.
+    for (const cat of cfg.categories ?? []) {
+      for (const m of cat.moves ?? []) m.descHtml = m.desc ? await this.#enrich(m.desc, this.actor?.uuid) : "";
+    }
+
+    const cats = (cfg.categories ?? [])
+      .map((cat) => {
+        const moves = (cat.moves ?? [])
+          .map(
+            (m) => `
+            <button type="button" class="ms-rest-move" data-cat="${esc(cat.key)}" data-move="${esc(m.key)}">
+              <span class="ms-rest-move-row">
+                ${m.icon ? `<i class="ms-rest-move-icon ${esc(m.icon)}"></i>` : ""}
+                <span class="ms-rest-move-name">${esc(m.name)}</span>
+                <span class="ms-rest-move-count" data-count="${esc(cat.key)}::${esc(m.key)}"></span>
+              </span>
+              ${m.descHtml ? `<span class="ms-rest-move-desc">${m.descHtml}</span>` : ""}
+            </button>`
+          )
+          .join("");
+        const label = esc(cat.label || L(cat.key));
+        return `<div class="ms-rest-cat">
+            <div class="ms-rest-cat-head">
+              <span class="ms-rest-cat-label">${label}</span>
+              <span class="ms-rest-budget" data-budget="${esc(cat.key)}"></span>
+            </div>
+            <div class="ms-rest-moves">${moves}</div>
+          </div>`;
+      })
+      .join("");
+
+    const html = `
+      <div class="ms-grab"></div>
+      <div class="ms-sheet-head">
+        <span class="ms-sheet-title">${esc(cfg.title || L("title"))}</span>
+        <button type="button" class="ms-sheet-close" aria-label="Close">✕</button>
+      </div>
+      <p class="ms-rest-hint">${L("hint")}</p>
+      <div class="ms-rest-cats">${cats}</div>
+      <button type="button" class="ms-roll-go ms-rest-go" disabled>${L("take")}</button>`;
+
+    const mounted = this.#mountSheet(html);
+    if (!mounted) return;
+    const { wrap, close } = mounted;
+    wrap.querySelector(".ms-sheet-panel")?.classList.add("ms-detail-panel");
+
+    // Selection state: { [cat]: { [move]: count } }, each category capped at its max.
+    const picks = {};
+    const maxOf = Object.fromEntries((cfg.categories ?? []).map((c) => [c.key, c.max]));
+    const used = (cat) => Object.values(picks[cat] ?? {}).reduce((a, n) => a + n, 0);
+    const goBtn = wrap.querySelector(".ms-rest-go");
+
+    const paint = () => {
+      let total = 0;
+      for (const cat of cfg.categories ?? []) {
+        const u = used(cat.key);
+        total += u;
+        const budgetEl = wrap.querySelector(`[data-budget="${cat.key}"]`);
+        if (budgetEl) budgetEl.textContent = `${u} / ${cat.max}`;
+        const full = u >= cat.max;
+        for (const m of cat.moves ?? []) {
+          const n = picks[cat.key]?.[m.key] ?? 0;
+          const btn = wrap.querySelector(`.ms-rest-move[data-cat="${cat.key}"][data-move="${m.key}"]`);
+          const cEl = wrap.querySelector(`[data-count="${cat.key}::${m.key}"]`);
+          if (cEl) cEl.textContent = n > 0 ? `×${n}` : "";
+          btn?.classList.toggle("ms-rest-move-on", n > 0);
+          btn?.classList.toggle("ms-rest-move-full", full && n === 0);
+        }
+      }
+      goBtn.disabled = total === 0;
+    };
+
+    const add = (cat, move, delta) => {
+      picks[cat] ??= {};
+      if (delta > 0 && used(cat) >= (maxOf[cat] ?? 0)) return; // category full
+      const next = Math.max(0, (picks[cat][move] ?? 0) + delta);
+      if (next === 0) delete picks[cat][move];
+      else picks[cat][move] = next;
+      paint();
+    };
+
+    wrap.querySelectorAll(".ms-rest-move").forEach((b) => {
+      b.addEventListener("click", () => add(b.dataset.cat, b.dataset.move, +1));
+      b.addEventListener("contextmenu", (ev) => { ev.preventDefault(); add(b.dataset.cat, b.dataset.move, -1); });
+    });
+    wrap.querySelector(".ms-sheet-close").addEventListener("click", close);
+    wrap.querySelector(".ms-sheet-backdrop").addEventListener("click", close);
+    goBtn.addEventListener("click", (ev) => {
+      close();
+      this.#dispatch({ type: "rest", key: cfg.key, picks, event: ev });
+    });
+
+    paint();
+  }
+
+  /**
    * General dice roller bottom sheet: tap d4–d20 to build a pool, nudge a flat
    * modifier, then Roll. This is a generic dice tool, not a system mechanic — it
    * builds a plain core-Foundry `Roll` (zero `actor.system` access, no duality /
@@ -1155,6 +1317,46 @@ export class PocketSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
       .join("");
     el.innerHTML = `<div class="ms-dice-rbreak">${groups}</div><div class="ms-dice-rtotal">${roll.total}</div>`;
     el.hidden = false;
+  }
+
+  /**
+   * Transient roll-result banner: the in-sheet echo of a roll, since chat can be
+   * hidden in phone sheet-only mode. Shows the grand total, the adapter's localized
+   * outcome label, and any notable dice (Hope / Fear), tinted by `outcome`. Slides in
+   * at the top, auto-dismisses, and is tap-to-close; only one shows at a time. Reads
+   * only the normalized RollResult — no system knowledge.
+   */
+  #showRollBanner(r) {
+    const root = this.element?.querySelector(".ms-root") ?? this.element;
+    if (!root || !r) return;
+    root.querySelector(".ms-banner")?.remove(); // never stack banners
+
+    const esc = (s) => Handlebars.escapeExpression(s ?? "");
+    const tone = (t) => (t ? ` ${TONE_CLASS[t] ?? ""}` : "");
+    const dice = (r.dice ?? [])
+      .map(
+        (d) => `<span class="ms-banner-die${tone(d.tone)}">
+          <span class="ms-banner-die-label">${esc(d.label)}</span>
+          <span class="ms-banner-die-val">${esc(d.value)}</span>
+        </span>`
+      )
+      .join("");
+
+    const el = document.createElement("div");
+    el.className = `ms-banner ms-banner-${r.outcome ?? "flat"}`;
+    el.innerHTML = `
+      <span class="ms-banner-total">${esc(r.total)}</span>
+      <span class="ms-banner-body">
+        ${r.label ? `<span class="ms-banner-label">${esc(r.label)}</span>` : ""}
+        ${dice ? `<span class="ms-banner-dice">${dice}</span>` : ""}
+      </span>
+      <button type="button" class="ms-banner-close" aria-label="Close">✕</button>`;
+    root.appendChild(el);
+    requestAnimationFrame(() => el.classList.add("ms-banner-in"));
+
+    const remove = () => { el.classList.remove("ms-banner-in"); setTimeout(() => el.remove(), 220); };
+    const timer = setTimeout(remove, 4500);
+    el.querySelector(".ms-banner-close").addEventListener("click", () => { clearTimeout(timer); remove(); });
   }
 
   // --- live re-render --------------------------------------------------------

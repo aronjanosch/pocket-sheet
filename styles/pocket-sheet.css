@@ -1497,3 +1497,125 @@ body.pocket-sheet-only .ms-fab {
 .ms-detail-act-primary .ms-detail-act-sub { color: #1a1305aa; }
 .ms-detail-act-danger { border-color: var(--ms-hp); background: #bb514220; color: #e59185; }
 .ms-detail-act-ghost { background: transparent; color: var(--ms-soft); border-color: var(--ms-line); }
+
+/* --- roll result banner --------------------------------------------------- */
+/* Transient in-sheet echo of a roll (chat may be hidden in sheet-only mode).
+   Slides down from the top, tinted by outcome, auto-dismisses. */
+.ms-banner {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  right: 10px;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  border-radius: var(--ms-radius);
+  background: linear-gradient(180deg, var(--ms-surf2), var(--ms-surf));
+  border: 1px solid var(--tone, var(--ms-accent));
+  box-shadow: 0 14px 34px -12px #000, 0 0 0 3px color-mix(in oklab, var(--tone, var(--ms-accent)) 16%, transparent);
+  transform: translateY(calc(-100% - 16px));
+  opacity: 0;
+  transition: transform 0.22s ease, opacity 0.22s ease;
+}
+.ms-banner-in { transform: translateY(0); opacity: 1; }
+
+.ms-banner-hope { --tone: var(--ms-accent); }
+.ms-banner-fear { --tone: var(--ms-stress); }
+.ms-banner-crit { --tone: var(--ms-accent); box-shadow: 0 14px 34px -12px #000, 0 0 0 3px color-mix(in oklab, var(--ms-accent) 30%, transparent); }
+.ms-banner-flat { --tone: var(--ms-soft); }
+
+.ms-banner-total {
+  font: 700 26px var(--ms-serif);
+  line-height: 1;
+  color: var(--tone, var(--ms-accent));
+  min-width: 1.4em;
+  text-align: center;
+}
+
+.ms-banner-body {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+.ms-banner-label {
+  font: 600 14px var(--ms-sans);
+  letter-spacing: 0.02em;
+  color: var(--ms-fg);
+  text-transform: uppercase;
+}
+.ms-banner-dice { display: flex; gap: 10px; }
+.ms-banner-die {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 4px;
+  font: 500 12px var(--ms-sans);
+  color: var(--ms-soft);
+}
+.ms-banner-die-val { font: 600 13px var(--ms-mono); color: var(--tone, var(--ms-accent)); }
+
+.ms-banner-close {
+  width: 26px;
+  height: 26px;
+  flex: none;
+  border-radius: 8px;
+  background: var(--ms-raise);
+  border: 1px solid var(--ms-line2);
+  color: var(--ms-soft);
+  font-size: 12px;
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+}
+
+/* --- rest (pocket downtime) sheet ----------------------------------------- */
+.ms-rest-hint {
+  margin: 2px 0 12px;
+  font: 400 13px var(--ms-sans);
+  color: var(--ms-soft);
+}
+.ms-rest-cats { display: flex; flex-direction: column; gap: 16px; }
+.ms-rest-cat-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+.ms-rest-cat-label {
+  font: 600 13px var(--ms-sans);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ms-accent);
+}
+.ms-rest-budget { font: 600 13px var(--ms-mono); color: var(--ms-soft); }
+.ms-rest-moves { display: flex; flex-direction: column; gap: 8px; }
+
+.ms-rest-move {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  width: 100%;
+  text-align: left;
+  padding: 11px 13px;
+  border-radius: var(--ms-radius);
+  background: var(--ms-raise);
+  border: 1px solid var(--ms-line2);
+  color: var(--ms-fg);
+  cursor: pointer;
+}
+.ms-rest-move-row { display: flex; align-items: center; gap: 9px; }
+.ms-rest-move-icon { color: var(--ms-accent); font-size: 14px; width: 18px; text-align: center; }
+.ms-rest-move-name { flex: 1; font: 600 15px var(--ms-sans); }
+.ms-rest-move-count { font: 700 14px var(--ms-mono); color: var(--ms-accent); }
+.ms-rest-move-desc { font: 400 13px var(--ms-sans); line-height: 1.45; color: var(--ms-soft); }
+.ms-rest-move-desc :is(p, ul) { margin: 0 0 4px; }
+
+.ms-rest-move-on {
+  border-color: var(--ms-accent);
+  background: color-mix(in oklab, var(--ms-accent) 14%, transparent);
+}
+.ms-rest-move-full { opacity: 0.45; }
+.ms-rest-go { margin-top: 16px; }

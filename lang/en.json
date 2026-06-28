@@ -39,6 +39,12 @@
   "MOBILE_SHEET.spend.title": "Use",
   "MOBILE_SHEET.spend.spend": "Spend",
 
+  "MOBILE_SHEET.rest.title": "Rest",
+  "MOBILE_SHEET.rest.hint": "Choose your downtime moves, then take your rest.",
+  "MOBILE_SHEET.rest.take": "Take Rest",
+  "MOBILE_SHEET.rest.shortRest": "Short Rest Moves",
+  "MOBILE_SHEET.rest.longRest": "Long Rest Moves",
+
   "MOBILE_SHEET.dice.title": "Roll Dice",
   "MOBILE_SHEET.dice.hint": "Tap a die to add it to the pool. Long-press or right-click to remove one.",
   "MOBILE_SHEET.dice.empty": "Tap dice to build your roll",
@@ -70,6 +76,9 @@
   "MOBILE_SHEET.daggerheart.resource.stress": "Stress",
   "MOBILE_SHEET.daggerheart.resource.hope": "Hope",
   "MOBILE_SHEET.daggerheart.resource.armor": "Armor",
+
+  "MOBILE_SHEET.daggerheart.banner.hope": "Hope",
+  "MOBILE_SHEET.daggerheart.banner.fear": "Fear",
 
   "MOBILE_SHEET.daggerheart.trait.agility": "Agility",
   "MOBILE_SHEET.daggerheart.trait.strength": "Strength",
@@ -139,6 +148,7 @@
   "MOBILE_SHEET.daggerheart.type.class": "Class",
   "MOBILE_SHEET.daggerheart.type.subclass": "Subclass",
   "MOBILE_SHEET.daggerheart.type.feature": "Feature",
+  "MOBILE_SHEET.daggerheart.type.companion": "Companion",
   "MOBILE_SHEET.daggerheart.type.weapon": "Weapons",
   "MOBILE_SHEET.daggerheart.type.armor": "Armor",
   "MOBILE_SHEET.daggerheart.type.consumable": "Consumables",

@@ -25,6 +25,9 @@ const TRAITS = ["agility", "strength", "finesse", "instinct", "presence", "knowl
 /** Curated conditions surfaced as toggleable tags (VERIFY ids on a live world). */
 const CONDITION_IDS = ["vulnerable", "hidden", "restrained"];
 
+/** Item types shown on the Features tab and given an in-sheet detail panel. */
+const FEATURE_TYPES = ["ancestry", "community", "class", "subclass", "feature", "companion"];
+
 /** Fallback resource maxes when the field stores `max: null` (= system default). */
 const RESOURCE_MAX_DEFAULTS = { stress: 6, hope: 6 };
 
@@ -281,7 +284,7 @@ function featuresTab(actor) {
     return blocks;
   }
 
-  const rows = itemRows(actor, ["ancestry", "community", "class", "subclass", "feature"], featureRow);
+  const rows = itemRows(actor, FEATURE_TYPES, featureRow);
   if (rows.length) {
     blocks.push({ kind: "heading", label: L("heading.features") });
     blocks.push({ kind: "actionList", items: rows });
@@ -384,9 +387,9 @@ function bioTab(actor) {
   const raw = sys.details?.biography ?? sys.biography ?? sys.background;
   const text = typeof raw === "string" ? raw : raw?.value;
   if (!text || typeof text !== "string" || !text.trim()) return [];
-  // getViewModel is sync/pure → cannot enrich (async). Escape owner-supplied text.
-  // VERIFY: switch to pre-enriched HTML once a render-time enrich hook exists.
-  return [{ kind: "info", title: L("heading.background"), html: `<p>${Handlebars.escapeExpression(text)}</p>` }];
+  // getViewModel is sync/pure → cannot enrich (async). Hand the stored HTML RAW with
+  // the actor uuid; the shell enriches it at render time (formatting / rolls / links).
+  return [{ kind: "info", title: L("heading.background"), html: text, enrich: true, relativeToUuid: actor.uuid }];
 }
 
 function typeLabel(type) {
@@ -645,11 +648,190 @@ async function useItem(actor, intent) {
   return actor.items?.get(intent.itemId)?.use?.(intent.event);
 }
 
-/** Open the system's Downtime (rest) dialog for a short or long rest. */
+/** Open the system's Downtime (rest) dialog — the desktop fallback when the pocket
+ *  rest sheet can't be built (e.g. the move config is unreadable). */
 function openRest(actor, key) {
   const Downtime = game.system?.api?.applications?.dialogs?.Downtime;
   if (!Downtime) return;
   return new Downtime(actor, key === "short").render({ force: true });
+}
+
+// --- rest (pocket Downtime) --------------------------------------------------
+//
+// The system's Downtime is a desktop ApplicationV2. Pocket Sheet replaces it with a
+// bottom sheet: pick the rest's moves (gated by the same per-category budget), then
+// replicate `DhpDowntime.takeDowntime` — post the system's own downtime chat card and
+// reset the same refreshables. The card's action buttons (heal, clear stress…) are the
+// system's; we never apply those effects ourselves. Ported from daggerheart 2.x.
+
+/** The world's rest-move config (Homebrew `restMoves`), deep-cloned. Null if unreadable. */
+function restMovesConfig() {
+  try {
+    const id = CONFIG?.DH?.id ?? SYSTEM_ID;
+    const key = CONFIG?.DH?.SETTINGS?.gameSettings?.Homebrew;
+    if (!key) return null;
+    const moves = game.settings.get(id, key)?.restMoves;
+    return moves ? foundry.utils.deepClone(moves) : null;
+  } catch (_) {
+    return null;
+  }
+}
+
+/** Per-category move budget for a short/long rest (mirrors DhpDowntime's constructor). */
+function restChoiceMax(actor, moveData, shortrest) {
+  const bonus = actor.system?.bonuses?.rest?.[shortrest ? "shortRest" : "longRest"] ?? {};
+  return {
+    shortRest: (shortrest ? moveData?.shortRest?.nrChoices ?? 0 : 0) + (bonus.shortMoves ?? 0),
+    longRest: (!shortrest ? moveData?.longRest?.nrChoices ?? 0 : 0) + (bonus.longMoves ?? 0)
+  };
+}
+
+/** Whether a uses/resource recovery type refreshes on the given rest (system rule). */
+function refreshIsAllowed(allowedTypes, typeToCheck) {
+  const rt = CONFIG?.DH?.GENERAL?.refreshTypes;
+  if (!rt || !typeToCheck) return false;
+  switch (typeToCheck) {
+    case rt.scene?.id:
+    case rt.session?.id:
+    case rt.longRest?.id:
+      return allowedTypes.includes(typeToCheck);
+    case rt.shortRest?.id:
+      return allowedTypes.some((x) => x === rt.shortRest?.id || x === rt.longRest?.id);
+    default:
+      return false;
+  }
+}
+
+/** Item action-uses and item resources this rest refreshes (ports DhpDowntime.getRefreshables). */
+function restRefreshables(actor, shortrest) {
+  const allowed = [shortrest ? "shortRest" : "longRest"];
+  const actionItems = [];
+  const resourceItems = [];
+  for (const item of actor.items ?? []) {
+    let available = true;
+    try { available = actor.system?.isItemAvailable ? actor.system.isItemAvailable(item) : true; } catch (_) { available = true; }
+    const acts = item.system?.actions;
+    if (available && acts) {
+      const list = Array.isArray(acts) ? acts : [...(acts?.values?.() ?? Object.values(acts))];
+      for (const action of list) {
+        if (action?.uses?.recovery && refreshIsAllowed(allowed, action.uses.recovery)) {
+          actionItems.push({ title: item.name, name: action.name, uuid: action.uuid });
+        }
+      }
+    }
+    const resource = item.system?.resource;
+    if (resource?.type && refreshIsAllowed(allowed, resource.recovery)) {
+      resourceItems.push({ title: game.i18n.localize(`TYPES.Item.${item.type}`), name: item.name, uuid: item.uuid });
+    }
+  }
+  return { actionItems, resourceItems };
+}
+
+/**
+ * PURE-ish (reads settings/items, never writes): what the pocket rest sheet needs —
+ * the move categories in budget for this rest, each with its pickable moves. Null when
+ * the system has no Downtime or the move config can't be read → the shell falls back to
+ * the system's desktop dialog.
+ */
+function getRestConfig(actor, key) {
+  if (!game.system?.api?.applications?.dialogs?.Downtime) return null;
+  const moveData = restMovesConfig();
+  if (!moveData) return null;
+  const shortrest = key === "short";
+  const max = restChoiceMax(actor, moveData, shortrest);
+  const categories = ["shortRest", "longRest"]
+    .filter((cat) => (max[cat] ?? 0) > 0)
+    .map((cat) => ({
+      key: cat,
+      max: max[cat],
+      moves: Object.entries(moveData[cat]?.moves ?? {}).map(([mkey, m]) => ({
+        key: mkey,
+        name: m.name ?? mkey,
+        icon: m.icon ?? "",
+        img: m.img ?? "",
+        desc: m.description ?? ""
+      }))
+    }))
+    .filter((c) => c.moves.length);
+  if (!categories.length) return null;
+  const title = game.i18n.localize(`DAGGERHEART.APPLICATIONS.Downtime.${shortrest ? "shortRest" : "longRest"}.title`);
+  return { title, key, categories };
+}
+
+/** Total moves selected in one category's picks. */
+function sumPicks(sel) {
+  return Object.values(sel ?? {}).reduce((a, n) => a + (Number(n) || 0), 0);
+}
+
+/**
+ * Apply a pocket rest: post the system's downtime chat card for the picked moves and
+ * reset the rest's refreshables when the full budget was taken — a faithful port of
+ * DhpDowntime.takeDowntime. `picks` is `{ [category]: { [moveKey]: count } }`.
+ */
+async function applyRest(actor, key, picks) {
+  const moveData = restMovesConfig();
+  if (!moveData) return openRest(actor, key); // can't read config → desktop dialog
+  const shortrest = key === "short";
+
+  for (const [cat, sel] of Object.entries(picks ?? {})) {
+    for (const [mkey, count] of Object.entries(sel ?? {})) {
+      if (moveData[cat]?.moves?.[mkey] && count > 0) moveData[cat].moves[mkey].selected = count;
+    }
+  }
+
+  const moves = Object.keys(moveData).flatMap((categoryKey) => {
+    const category = moveData[categoryKey];
+    return Object.keys(category?.moves ?? {})
+      .filter((x) => category.moves[x].selected)
+      .flatMap((mk) => {
+        const move = category.moves[mk];
+        const acts = move.actions;
+        const list = Array.isArray(acts) ? acts : [...(acts?.values?.() ?? Object.values(acts ?? {}))];
+        const needsTarget = list.some((a) => a?.target?.type && a.target.type !== "self");
+        return [...Array(move.selected).keys()].map(() => ({ ...move, movePath: `${categoryKey}.moves.${mk}`, needsTarget }));
+      });
+  });
+  if (!moves.length) return;
+
+  const characters = (game.actors ?? []).filter(
+    (a) => a.type === "character" && a.testUserPermission(game.user, "LIMITED") && a.uuid !== actor.uuid
+  );
+
+  const cls = getDocumentClass("ChatMessage");
+  const title = game.i18n.localize(`DAGGERHEART.APPLICATIONS.Downtime.${shortrest ? "shortRest" : "longRest"}.title`);
+  const content = await foundry.applications.handlebars.renderTemplate(
+    "systems/daggerheart/templates/ui/chat/downtime.hbs",
+    { title, actor: { name: actor.name, img: actor.img }, moves, characters, selfId: actor.uuid }
+  );
+  await cls.create({
+    user: game.user.id,
+    system: { moves, actor: actor.uuid },
+    speaker: cls.getSpeaker({ actor }),
+    title,
+    content,
+    flags: { daggerheart: { cssClass: "dh-chat-message dh-style" } }
+  });
+
+  // Reset refreshables once the full budget is taken (mirrors takeDowntime's gate).
+  const max = restChoiceMax(actor, moveData, shortrest);
+  const taken = { shortRest: sumPicks(picks?.shortRest), longRest: sumPicks(picks?.longRest) };
+  if (taken.shortRest >= max.shortRest && taken.longRest >= max.longRest) {
+    const refreshables = restRefreshables(actor, shortrest);
+    for (const data of refreshables.actionItems) {
+      const action = await fromUuid(data.uuid);
+      if (action?.parent?.parent && action.id != null) {
+        await action.parent.parent.update({ [`system.actions.${action.id}.uses.value`]: 0 });
+      }
+    }
+    for (const data of refreshables.resourceItems) {
+      const feature = await fromUuid(data.uuid);
+      const res = feature?.system?.resource;
+      if (!res) continue;
+      const increasing = res.progression === CONFIG?.DH?.ITEM?.itemResourceProgression?.increasing?.id;
+      const resetValue = increasing ? 0 : res.max ? Roll.replaceFormulaData(res.max, actor) : 0;
+      await feature.update({ "system.resource.value": resetValue });
+    }
+  }
 }
 
 /** Map a shell advantage choice to the system's advantageState value (adv +1 / dis −1). */
@@ -803,6 +985,28 @@ function rollOptions(actor) {
 }
 
 /**
+ * Normalize a finished roll's config into a banner-ready result, or null when the
+ * action had no roll (a spend / direct use). After a roll, the system reassigns
+ * `config.roll` to its postEvaluate data (DualityRoll.postEvaluate): grand `total`,
+ * `isCritical`, `hope`/`fear` die values, and `result.{duality, label}` (label already
+ * localized: Hope / Fear / Critical Success). The chat log is hidden in phone
+ * sheet-only mode, so the shell echoes this as a transient banner. PURE.
+ */
+function describeRoll(config) {
+  const r = config?.roll;
+  if (!r || typeof r !== "object" || typeof r.total !== "number") return null;
+  const duality = r.result?.duality;
+  const outcome = r.isCritical ? "crit" : duality > 0 ? "hope" : duality < 0 ? "fear" : "flat";
+  const out = { total: r.total, outcome, label: r.result?.label ?? "" };
+  const dice = [];
+  if (r.hope?.value != null) dice.push({ label: L("banner.hope"), value: r.hope.value, tone: "accent" });
+  if (r.fear?.value != null) dice.push({ label: L("banner.fear"), value: r.fear.value, tone: "stress" });
+  if (dice.length) out.dice = dice;
+  if (typeof r.success === "boolean") out.success = r.success;
+  return out;
+}
+
+/**
  * Generic dice pool → a plain Foundry roll posted to chat. Not a Daggerheart
  * mechanic (no duality / traits) — just the core dice roller the shell's dice
  * tray opens. Returns the evaluated Roll so the shell can echo the result inline
@@ -855,17 +1059,17 @@ async function experienceToChat(actor, id) {
 // --- item detail panel -------------------------------------------------------
 
 /**
- * Plain-text, escaped item description. getItemDetail is pure/sync so it cannot
- * run the system's async enricher; we strip markup to readable text and escape
- * it (same caveat as bioTab). VERIFY: switch to pre-enriched HTML once a
- * render-time enrich seam exists.
+ * Description fields for an ItemDetail. getItemDetail is pure/sync so it cannot run
+ * the system's async enricher; instead it hands the item's stored HTML RAW plus the
+ * item uuid, and the shell enriches at render time (inline rolls / @UUID links /
+ * formatting resolved relative to the item). Empty object when there's no text, so
+ * spreading it adds nothing.
  */
-function enrichDesc(item) {
+function descFields(item) {
   const raw = item.system?.description ?? item.system?.notes;
-  const text = typeof raw === "string" ? raw : raw?.value;
-  if (!text || typeof text !== "string") return "";
-  const plain = text.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim();
-  return plain ? `<p>${Handlebars.escapeExpression(plain)}</p>` : "";
+  const html = typeof raw === "string" ? raw : raw?.value;
+  if (!html || typeof html !== "string" || !html.trim()) return {};
+  return { desc: html, descEnrich: true, descRelativeToUuid: item.uuid };
 }
 
 /** Drop empty/missing pairs; stringify values. */
@@ -907,7 +1111,7 @@ function getItemDetail(actor, itemId) {
   const item = actor?.items?.get(itemId);
   if (!item) return null;
   const tag = typeLabel(item.type);
-  const desc = enrichDesc(item);
+  const desc = descFields(item);
   const sys = item.system ?? {};
 
   // Domain card — type id varies across versions; detect by its vault flag too.
@@ -920,7 +1124,7 @@ function getItemDetail(actor, itemId) {
       iconTone: "accent",
       tag: statusTag(typeLabel("domainCard"), domain),
       name: item.name,
-      desc,
+      ...desc,
       badges: badges([
         { label: L("badge.domain"), value: domain, tone: "accent" },
         { label: L("badge.level"), value: num(sys.level) },
@@ -947,7 +1151,7 @@ function getItemDetail(actor, itemId) {
       iconTone: "accent",
       tag: statusTag(tag, sys.equipped ? L("detail.statusEquipped") : ""),
       name: item.name,
-      desc,
+      ...desc,
       badges: badges([
         { label: L("badge.trait"), value: sys.trait ?? "" },
         { label: L("badge.range"), value: sys.range ?? "" },
@@ -971,7 +1175,7 @@ function getItemDetail(actor, itemId) {
       iconTone: "armor",
       tag: statusTag(tag, sys.equipped ? L("detail.statusWorn") : ""),
       name: item.name,
-      desc,
+      ...desc,
       badges: badges([
         { label: L("badge.score"), value: score, tone: "armor" },
         { label: L("badge.major"), value: major },
@@ -989,7 +1193,7 @@ function getItemDetail(actor, itemId) {
       iconTone: "info",
       tag,
       name: item.name,
-      desc,
+      ...desc,
       badges: badges([
         { label: L("badge.type"), value: tag },
         { label: L("badge.qty"), value: typeof qty === "number" ? `× ${qty}` : "" }
@@ -1003,7 +1207,38 @@ function getItemDetail(actor, itemId) {
     };
   }
 
-  return null; // features etc → desktop sheet fallback
+  // Features (ancestry / community / class / subclass / feature / companion): no
+  // gear stats, but a description + any embedded actions. Each action button reuses
+  // the useItem(uuid) path, so the system's roll / spend popups are caught into pocket
+  // sheets like an item row. Returning a panel keeps these off the desktop sheet.
+  if (FEATURE_TYPES.includes(item.type)) {
+    const domain = sys.domain ?? "";
+    const level = num(sys.level);
+    const actions = actionsOf(item)
+      .filter((a) => a?.uuid)
+      .map((a, i) => ({
+        label: a.name ?? L("detail.use"),
+        intent: "useItem",
+        uuid: a.uuid,
+        variant: i === 0 ? "primary" : "default"
+      }));
+    const chat = chatAction(item, actions.length ? "ghost" : "primary");
+    if (chat) actions.push(chat);
+    return {
+      glyph: "✶",
+      iconTone: "accent",
+      tag,
+      name: item.name,
+      ...desc,
+      badges: badges([
+        { label: L("badge.domain"), value: domain, tone: "accent" },
+        { label: L("badge.level"), value: level }
+      ]),
+      actions
+    };
+  }
+
+  return null; // unknown types → desktop sheet fallback
 }
 
 // --- adapter -----------------------------------------------------------------
@@ -1036,6 +1271,12 @@ export const daggerheartAdapter = {
    *  open a pocket bottom sheet instead. Reads documents; never writes. */
   getActionConfig(actor, ref) {
     return getActionConfig(actor, ref);
+  },
+
+  /** What the pocket rest sheet needs (move categories + budgets), or null for the
+   *  system's own Downtime dialog. Reads settings/items; never writes. */
+  getRestConfig(actor, key) {
+    return getRestConfig(actor, key);
   },
 
   /** PURE: actor.system → themed, tabbed view model. No async, no DOM, no writes. */
@@ -1077,15 +1318,15 @@ export const daggerheartAdapter = {
   async invoke(actor, intent) {
     switch (intent.type) {
       case "rollTrait":
-        return rollTraitDirect(actor, intent);
+        return describeRoll(await rollTraitDirect(actor, intent));
       case "primary":
       case "rollStat":
         // Fallback path (no roll-sheet config) → the system's own roll dialog.
-        return actor.rollTrait?.(intent.statKey ?? intent.key, { event: intent.event });
+        return describeRoll(await actor.rollTrait?.(intent.statKey ?? intent.key, { event: intent.event }));
       case "rollDice":
         return rollDice(actor, intent.formula);
       case "useItem":
-        return useItem(actor, intent);
+        return describeRoll(await useItem(actor, intent));
       case "openItem":
         return actor.items.get(intent.itemId)?.sheet?.render(true);
       case "toChat":
@@ -1097,7 +1338,8 @@ export const daggerheartAdapter = {
       case "vault":
         return toggleVault(actor, intent.itemId);
       case "rest":
-        return openRest(actor, intent.key);
+        // Picks from the pocket rest sheet → apply; bare (fallback) → desktop dialog.
+        return intent.picks ? applyRest(actor, intent.key, intent.picks) : openRest(actor, intent.key);
       case "deathMove":
         return openDeathMove(actor);
       case "adjustResource":
