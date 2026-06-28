@@ -52,6 +52,8 @@ export class PocketSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
   #activeStatKey = null;
   /** Adapter-supplied roll-sheet augmentations (experiences, hope, bonus). */
   #rollOptions = null;
+  /** Last roll's normalized result, kept so the banner survives re-renders. */
+  #lastRoll = null;
 
   static DEFAULT_OPTIONS = {
     classes: ["pocket-sheet", "ms-sheet"],
@@ -555,6 +557,7 @@ export class PocketSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
     }
 
     this.#wireResourceSliders(root);
+    this.#renderBanner(); // re-attach a live roll banner after a re-render
   }
 
   /**
@@ -1124,23 +1127,15 @@ export class PocketSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
     const esc = (s) => Handlebars.escapeExpression(s ?? "");
     const L = (k) => game.i18n.localize(`MOBILE_SHEET.rest.${k}`);
 
-    // Enrich move descriptions (actor-relative) before building markup.
-    for (const cat of cfg.categories ?? []) {
-      for (const m of cat.moves ?? []) m.descHtml = m.desc ? await this.#enrich(m.desc, this.actor?.uuid) : "";
-    }
-
     const cats = (cfg.categories ?? [])
       .map((cat) => {
         const moves = (cat.moves ?? [])
           .map(
             (m) => `
             <button type="button" class="ms-rest-move" data-cat="${esc(cat.key)}" data-move="${esc(m.key)}">
-              <span class="ms-rest-move-row">
-                ${m.icon ? `<i class="ms-rest-move-icon ${esc(m.icon)}"></i>` : ""}
-                <span class="ms-rest-move-name">${esc(m.name)}</span>
-                <span class="ms-rest-move-count" data-count="${esc(cat.key)}::${esc(m.key)}"></span>
-              </span>
-              ${m.descHtml ? `<span class="ms-rest-move-desc">${m.descHtml}</span>` : ""}
+              ${m.icon ? `<i class="ms-rest-move-icon ${esc(m.icon)}"></i>` : ""}
+              <span class="ms-rest-move-name">${esc(m.name)}</span>
+              <span class="ms-rest-move-count" data-count="${esc(cat.key)}::${esc(m.key)}"></span>
             </button>`
           )
           .join("");
@@ -1252,7 +1247,6 @@ export class PocketSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
         <span class="ms-dice-mod-val">+0</span>
         <button type="button" class="ms-dice-mod-btn" data-step="1">+</button>
       </div>
-      <div class="ms-dice-result" hidden></div>
       <button type="button" class="ms-roll-go ms-dice-roll" disabled>${L("roll")}</button>`;
 
     const mounted = this.#mountSheet(html);
@@ -1302,34 +1296,41 @@ export class PocketSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
       // Delegate the actual dice math + chat card to the adapter; it hands back
       // the evaluated Roll so we can echo the result inline (chat may be hidden).
       const roll = await this.#dispatch({ type: "rollDice", formula: f });
-      if (roll) this.#paintDiceResult(wrap, roll);
+      if (roll) this.#showRollBanner(this.#diceResult(roll));
     });
 
     paint();
   }
 
-  /** Render an evaluated Roll's per-die-type breakdown + total into the sheet. */
-  #paintDiceResult(wrap, roll) {
-    const el = wrap.querySelector(".ms-dice-result");
-    if (!el) return;
-    const groups = (roll.dice ?? [])
-      .map((d) => `<div class="ms-dice-rgroup"><span class="ms-dice-rlabel">${d.number}d${d.faces}</span><span class="ms-dice-rvals">${d.results.map((r) => r.result).join("  ·  ")}</span></div>`)
-      .join("");
-    el.innerHTML = `<div class="ms-dice-rbreak">${groups}</div><div class="ms-dice-rtotal">${roll.total}</div>`;
-    el.hidden = false;
+  /** A generic evaluated Roll → the normalized RollResult the banner renders
+   *  (per-die-type totals + grand total). Keeps the dice roller and duality rolls on
+   *  one feedback path. */
+  #diceResult(roll) {
+    const dice = (roll.dice ?? []).map((d) => ({ label: `${d.number}d${d.faces}`, value: d.total }));
+    return { total: roll.total, outcome: "flat", label: roll.formula ?? "", dice };
+  }
+
+  /** Record a roll result and (re)show its banner. */
+  #showRollBanner(r) {
+    if (!r) return;
+    this.#lastRoll = r;
+    this.#renderBanner();
   }
 
   /**
-   * Transient roll-result banner: the in-sheet echo of a roll, since chat can be
-   * hidden in phone sheet-only mode. Shows the grand total, the adapter's localized
-   * outcome label, and any notable dice (Hope / Fear), tinted by `outcome`. Slides in
-   * at the top, auto-dismisses, and is tap-to-close; only one shows at a time. Reads
-   * only the normalized RollResult — no system knowledge.
+   * (Re)mount the persistent roll-result banner from #lastRoll — the in-sheet echo of a
+   * roll, since chat can be hidden in phone sheet-only mode. Shows the grand total, the
+   * adapter's localized outcome label, and any notable dice (Hope / Fear / per-type),
+   * tinted by `outcome`. Non-blocking (the sheet stays visible, so resource changes show
+   * through) and persistent: it survives re-renders and stays until dismissed or the next
+   * roll replaces it. Reads only the normalized RollResult — no system knowledge.
    */
-  #showRollBanner(r) {
+  #renderBanner() {
     const root = this.element?.querySelector(".ms-root") ?? this.element;
-    if (!root || !r) return;
+    if (!root) return;
     root.querySelector(".ms-banner")?.remove(); // never stack banners
+    const r = this.#lastRoll;
+    if (!r) return;
 
     const esc = (s) => Handlebars.escapeExpression(s ?? "");
     const tone = (t) => (t ? ` ${TONE_CLASS[t] ?? ""}` : "");
@@ -1353,10 +1354,16 @@ export class PocketSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
       <button type="button" class="ms-banner-close" aria-label="Close">✕</button>`;
     root.appendChild(el);
     requestAnimationFrame(() => el.classList.add("ms-banner-in"));
+    el.querySelector(".ms-banner-close").addEventListener("click", () => this.#dismissBanner());
+  }
 
-    const remove = () => { el.classList.remove("ms-banner-in"); setTimeout(() => el.remove(), 220); };
-    const timer = setTimeout(remove, 4500);
-    el.querySelector(".ms-banner-close").addEventListener("click", () => { clearTimeout(timer); remove(); });
+  /** Dismiss the banner and forget the last roll (so a re-render won't bring it back). */
+  #dismissBanner() {
+    this.#lastRoll = null;
+    const el = this.element?.querySelector(".ms-banner");
+    if (!el) return;
+    el.classList.remove("ms-banner-in");
+    setTimeout(() => el.remove(), 220);
   }
 
   // --- live re-render --------------------------------------------------------

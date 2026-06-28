@@ -255,7 +255,9 @@ function stuffRow(i) {
 }
 
 function featureRow(item) {
-  const row = { itemId: item.id, name: item.name, img: item.img, use: can(item, "use") };
+  // Tapping a feature row opens its detail panel (use:false → shell's `openable` path);
+  // an active feature's own actions stay reachable as inline action buttons + in the panel.
+  const row = { itemId: item.id, name: item.name, img: item.img, use: false };
   attachActions(row, item);
   const controls = chatControl(item);
   if (controls.length) row.controls = controls;
@@ -383,13 +385,17 @@ function itemsTab(actor) {
 }
 
 function bioTab(actor) {
-  const sys = actor.system ?? {};
-  const raw = sys.details?.biography ?? sys.biography ?? sys.background;
-  const text = typeof raw === "string" ? raw : raw?.value;
-  if (!text || typeof text !== "string" || !text.trim()) return [];
-  // getViewModel is sync/pure → cannot enrich (async). Hand the stored HTML RAW with
-  // the actor uuid; the shell enriches it at render time (formatting / rolls / links).
-  return [{ kind: "info", title: L("heading.background"), html: text, enrich: true, relativeToUuid: actor.uuid }];
+  const bio = actor.system?.biography ?? {};
+  // DH 2.x stores biography as a SchemaField of HTML fields (background / connections).
+  // getViewModel is sync/pure → cannot enrich (async); hand each RAW with the actor uuid
+  // and the shell enriches at render (formatting / rolls / links).
+  const sections = [
+    { title: L("heading.background"), html: bio.background },
+    { title: L("heading.connections"), html: bio.connections }
+  ];
+  return sections
+    .filter((s) => typeof s.html === "string" && s.html.trim())
+    .map((s) => ({ kind: "info", title: s.title, html: s.html, enrich: true, relativeToUuid: actor.uuid }));
 }
 
 function typeLabel(type) {

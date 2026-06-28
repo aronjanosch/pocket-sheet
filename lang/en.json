@@ -100,6 +100,7 @@
   "MOBILE_SHEET.daggerheart.heading.inventory": "Items",
   "MOBILE_SHEET.daggerheart.heading.gold": "Gold",
   "MOBILE_SHEET.daggerheart.heading.background": "Background",
+  "MOBILE_SHEET.daggerheart.heading.connections": "Connections",
   "MOBILE_SHEET.daggerheart.heading.thresholds": "Damage Thresholds",
 
   "MOBILE_SHEET.daggerheart.threshold.minor": "Minor",

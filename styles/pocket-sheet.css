@@ -1595,10 +1595,11 @@ body.pocket-sheet-only .ms-fab {
 
 .ms-rest-move {
   display: flex;
-  flex-direction: column;
-  gap: 5px;
+  align-items: center;
+  gap: 10px;
   width: 100%;
   text-align: left;
+  min-height: var(--ms-tap-min);
   padding: 11px 13px;
   border-radius: var(--ms-radius);
   background: var(--ms-raise);
@@ -1606,12 +1607,9 @@ body.pocket-sheet-only .ms-fab {
   color: var(--ms-fg);
   cursor: pointer;
 }
-.ms-rest-move-row { display: flex; align-items: center; gap: 9px; }
-.ms-rest-move-icon { color: var(--ms-accent); font-size: 14px; width: 18px; text-align: center; }
+.ms-rest-move-icon { color: var(--ms-accent); font-size: 15px; width: 20px; text-align: center; flex: none; }
 .ms-rest-move-name { flex: 1; font: 600 15px var(--ms-sans); }
-.ms-rest-move-count { font: 700 14px var(--ms-mono); color: var(--ms-accent); }
-.ms-rest-move-desc { font: 400 13px var(--ms-sans); line-height: 1.45; color: var(--ms-soft); }
-.ms-rest-move-desc :is(p, ul) { margin: 0 0 4px; }
+.ms-rest-move-count { font: 700 14px var(--ms-mono); color: var(--ms-accent); flex: none; }
 
 .ms-rest-move-on {
   border-color: var(--ms-accent);
