@@ -346,10 +346,10 @@ export class PocketSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
         dmgLabel: card.damage?.label ?? "",
         dmgFormula: card.damage?.formula ?? "",
         dmgTotal: card.damage?.total != null ? String(card.damage.total) : "",
-        // The message's full rendered card (formula, dice tooltip, etc) — shown on tap so a
-        // phone player can see the breakdown the compact card omits. Core-rendered HTML.
-        detail: m.content ?? "",
-        hasDetail: !!m.content
+        // Tap-to-expand breakdown, built from the Roll objects themselves (reliable +
+        // already-escaped) rather than re-injecting the system's chat HTML.
+        detail: this.#rollDetailHtml(m.rolls),
+        hasDetail: (m.rolls?.length ?? 0) > 0
       };
     }
 
@@ -357,7 +357,58 @@ export class PocketSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
     if (isWhisper) {
       return { ...base, isWhisper: true, whisperLabel: game.i18n.localize("MOBILE_SHEET.chat.whisper"), content: m.content ?? "" };
     }
+
+    // A roll the adapter didn't recognize as a system card (a /r, a damage roll, a plain
+    // d20) still gets a compact, expandable roll bubble — built generically from m.rolls.
+    const rolls = m.rolls ?? [];
+    if (rolls.length) {
+      const total = rolls.reduce((s, r) => s + (Number(r.total) || 0), 0);
+      const flavor = this.#stripHtml(m.flavor);
+      return {
+        ...base,
+        isRoll: true,
+        rollOutcome: "flat",
+        outcome: "",
+        total: String(total),
+        action: flavor,
+        hasAction: !!flavor,
+        hasHope: false, hasFear: false, hasAdv: false, hasDamage: false,
+        detail: this.#rollDetailHtml(rolls),
+        hasDetail: true
+      };
+    }
+
     return { ...base, isMsg: true, content: m.content ?? "" };
+  }
+
+  /** Plain text from possibly-HTML flavor (avoids dumping markup into the roll label). */
+  #stripHtml(html) {
+    const d = document.createElement("div");
+    d.innerHTML = html ?? "";
+    return (d.textContent || "").trim();
+  }
+
+  /** A roll's breakdown as safe HTML: one line per Roll (formula = total) plus the
+   *  individual die faces. Built from the Roll data, so it works for any roll the table
+   *  produces, with no dependence on the system's chat-card markup or core's tooltip JS. */
+  #rollDetailHtml(rolls) {
+    const esc = (s) => Handlebars.escapeExpression(s ?? "");
+    return (rolls ?? [])
+      .map((r) => {
+        const faces = (r.dice ?? [])
+          .map((d) => {
+            const pips = (d.results ?? [])
+              .map((res) => `<span class="ms-roll-face${res.discarded ? " ms-roll-face-x" : ""}">${esc(res.result)}</span>`)
+              .join("");
+            return `<span class="ms-roll-term"><span class="ms-roll-term-die">d${esc(d.faces)}</span>${pips}</span>`;
+          })
+          .join("");
+        return `<div class="ms-roll-line">
+            <span class="ms-roll-line-formula">${esc(r.formula)}</span>
+            <span class="ms-roll-line-total">${esc(r.total)}</span>
+          </div>${faces ? `<div class="ms-roll-faces">${faces}</div>` : ""}`;
+      })
+      .join("");
   }
 
   // --- journal mode (core Foundry; read-only) -------------------------------

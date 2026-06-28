@@ -665,7 +665,7 @@
   display: flex;
   align-items: center;
   gap: 11px;
-  flex: 1 1 60%;
+  flex: 1 1 auto;
   min-width: 0;
   min-height: var(--ms-tap-min);
   color: var(--ms-fg);
@@ -2259,17 +2259,37 @@ body.pocket-sheets-daggerheart-only .ms-fab {
   cursor: auto;
 }
 .ms-chat-roll-open .ms-chat-roll-detail { display: block; }
-.ms-chat-roll-detail :is(img) { max-width: 100%; height: auto; }
-/* Foundry's dice tooltips collapse by default and need core listeners we don't attach —
-   force them open so the dice breakdown is actually visible inside the detail. */
-.ms-chat-roll-detail :is(.dice-tooltip, .tooltip-part, .dice-rolls) { display: block !important; }
-.ms-chat-roll-detail .dice-roll { cursor: default; }
-.ms-chat-roll-detail :is(.dice-formula, .dice-total) {
+.ms-roll-line {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 5px 9px;
   background: var(--ms-surf2);
   border: 1px solid var(--ms-line2);
   border-radius: 8px;
-  padding: 4px 8px;
-  margin: 4px 0;
-  color: var(--ms-fg);
-  font-family: var(--ms-mono);
 }
+.ms-roll-line + .ms-roll-faces { margin: 5px 0 9px; }
+.ms-roll-line-formula { font: 600 12px var(--ms-mono); color: var(--ms-soft); }
+.ms-roll-line-total { font: 700 14px var(--ms-mono); color: var(--ms-accent); }
+.ms-roll-faces { display: flex; flex-wrap: wrap; gap: 8px; }
+.ms-roll-term { display: inline-flex; align-items: center; gap: 4px; }
+.ms-roll-term-die {
+  font: 600 9px var(--ms-mono);
+  letter-spacing: 0.04em;
+  color: var(--ms-muted);
+  margin-right: 1px;
+}
+.ms-roll-face {
+  min-width: 22px;
+  height: 22px;
+  display: inline-grid;
+  place-items: center;
+  padding: 0 5px;
+  border-radius: 6px;
+  background: var(--ms-raise);
+  border: 1px solid var(--ms-line2);
+  font: 700 12px var(--ms-mono);
+  color: var(--ms-fg);
+}
+.ms-roll-face-x { opacity: 0.4; text-decoration: line-through; }
