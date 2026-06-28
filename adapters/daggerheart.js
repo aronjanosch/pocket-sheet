@@ -311,19 +311,58 @@ function experiencesBlocks(actor) {
   ];
 }
 
+/**
+ * The world's currency config — a Homebrew game setting the GM can rename/toggle
+ * (default denominations Coins/Handfuls/Bags/Chests, but a world may collapse it
+ * to a single custom name like "Quantum"). Returns `{ title, <key>: {enabled,
+ * label,…} }` or null on older versions / when unreadable. Defensive: never throws.
+ */
+function currencyConfig() {
+  try {
+    const id = CONFIG?.DH?.id ?? SYSTEM_ID;
+    const key = CONFIG?.DH?.SETTINGS?.gameSettings?.Homebrew;
+    if (!key) return null;
+    return game.settings.get(id, key)?.currency ?? null;
+  } catch (_) {
+    return null;
+  }
+}
+
+/**
+ * Gold as a tile per ENABLED currency denomination, read from the world config so
+ * a renamed/single currency ("Quantum") shows correctly. Falls back to the static
+ * Handfuls/Bags/Chests labels if the config can't be read.
+ */
+function goldBlocks(actor) {
+  const gold = actor.system?.gold;
+  if (!gold || typeof gold !== "object") return [];
+
+  const cfg = currencyConfig();
+  let title = L("heading.gold");
+  let denoms;
+  if (cfg) {
+    const { title: cfgTitle, ...rest } = cfg;
+    if (cfgTitle) title = cfgTitle;
+    denoms = Object.entries(rest)
+      .filter(([, d]) => d && d.enabled !== false)
+      .map(([key, d]) => ({ key, label: d.label ?? key }));
+  } else {
+    denoms = ["handfuls", "bags", "chests"].map((key) => ({ key, label: L(`gold.${key}`) }));
+  }
+
+  const stats = denoms
+    .filter((d) => gold[d.key] != null)
+    .map((d) => ({ label: d.label, value: gold[d.key] ?? 0 }));
+  if (!stats.length) return [];
+  return [
+    { kind: "heading", label: title },
+    { kind: "statGrid", cols: Math.min(stats.length, 3), stats }
+  ];
+}
+
 /** Inventory: gold, then the system's inventory categories with equip controls. */
 function itemsTab(actor) {
-  const blocks = [];
-
-  const gold = actor.system?.gold;
-  if (gold && typeof gold === "object") {
-    const tile = (key) => ({ label: L(`gold.${key}`), value: gold[key] ?? 0 });
-    const stats = ["handfuls", "bags", "chests"].filter((k) => gold[k] != null).map(tile);
-    if (stats.length) {
-      blocks.push({ kind: "heading", label: L("heading.gold") });
-      blocks.push({ kind: "statGrid", cols: stats.length, stats });
-    }
-  }
+  const blocks = [...goldBlocks(actor)];
 
   const sections = [
     ["weapon", weaponRow],
