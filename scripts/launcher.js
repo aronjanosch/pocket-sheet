@@ -132,13 +132,16 @@ export async function applyMobileCanvasMode() {
 
 /**
  * With `core.noCanvas` on, Dice So Nice bails at startup and never creates
- * `game.dice3d` — but the module still reports `active`. Daggerheart's duality
- * roll guards its 3D presets on `module.active` (not on `game.dice3d`), so it
- * then dereferences `game.dice3d.DiceFactory` and throws, breaking EVERY trait /
- * duality roll on a phone. We can't patch the system, so we install a tiny no-op
- * `game.dice3d` that satisfies the surface the roll pipeline touches and produces
- * no 3D dice (there's no canvas to draw them on anyway). Scoped tightly: only
- * when the canvas is off, DSN is active, and nothing else has set `game.dice3d`.
+ * `game.dice3d` — but the module still reports `active` AND still registers its
+ * hooks (e.g. `createChatMessage` → `game.dice3d.renderRolls`). Daggerheart's
+ * duality roll also guards its 3D presets on `module.active` (not `game.dice3d`).
+ * Both then dereference the missing `game.dice3d` and throw, breaking every roll
+ * on a phone. We can't patch either, so we install a no-op `game.dice3d`: a
+ * Proxy whose every unknown method resolves to a harmless async no-op, with the
+ * few structured bits the roll pipeline reads (DiceFactory) filled in and
+ * `messageHookDisabled` set so DSN's own chat hook bows out. Produces no 3D dice
+ * (there's no canvas to draw them on). Scoped: only when the canvas is off, DSN
+ * is active, and nothing else has set `game.dice3d`.
  */
 export function installDiceShim() {
   if (!game.settings.settings.has("core.noCanvas")) return;
@@ -146,16 +149,23 @@ export function installDiceShim() {
   if (!game.modules.get("dice-so-nice")?.active) return;     // DSN inactive → system guards itself
   if (game.dice3d) return;                                   // already initialized → leave it
 
-  const die = { appearance: {}, modelFile: null, modelLoaded: true, loadTextures: async () => {}, loadModel: async () => {} };
+  const noopFn = async () => true;
+  const die = { appearance: {}, modelFile: null, modelLoaded: true, loadTextures: noopFn, loadModel: noopFn };
   const diceSystem = { name: "", dice: { get: () => die } };
-  const noop = async () => true;
-  game.dice3d = {
+  const base = {
     DiceFactory: { loaderGLTF: null, systems: { get: () => diceSystem } },
-    showForRoll: noop,
-    waitFor3DAnimationByMessageID: noop,
-    show: noop
+    messageHookDisabled: true,   // DSN's createChatMessage hook bails on this
+    dice: [], box: null, uniforms: {}, hiddenAnimationQueue: [], diceLibrary: {}
   };
-  console.log(`${MODULE_ID} | canvas off — installed no-op game.dice3d shim so duality rolls don't require 3D dice`);
+  game.dice3d = new Proxy(base, {
+    get(target, prop, recv) {
+      if (typeof prop === "symbol") return Reflect.get(target, prop, recv);
+      if (prop === "then") return undefined;                 // never look thenable
+      if (prop in target) return target[prop];               // own + inherited (hasOwnProperty…)
+      return noopFn;                                         // any other DSN method → no-op
+    }
+  });
+  console.log(`${MODULE_ID} | canvas off — installed no-op game.dice3d shim so rolls don't require 3D dice`);
 }
 
 // --- actor resolution ------------------------------------------------------
