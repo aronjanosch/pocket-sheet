@@ -50,6 +50,8 @@ export class PocketSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
   /** Shell-local UI state — never written to the actor. */
   #activeTab = null;
   #activeStatKey = null;
+  /** Adapter-supplied roll-sheet augmentations (experiences, hope, bonus). */
+  #rollOptions = null;
 
   static DEFAULT_OPTIONS = {
     classes: ["pocket-sheet", "ms-sheet"],
@@ -118,6 +120,7 @@ export class PocketSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
 
     const theme = this.#theme(vm.theme);
     const primary = this.#primary(vm.primary, active.blocks ?? []);
+    this.#rollOptions = vm.primary?.rollOptions ?? null;
 
     return {
       ...base,
@@ -381,16 +384,11 @@ export class PocketSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
 
   static #onRollStat(event, target) {
     const label = target.querySelector(".ms-stat-label")?.textContent ?? "";
-    return this.#openRollSheet(target.dataset.key, label, event);
+    return this.#openTraitRoll(target.dataset.key, label, event);
   }
 
   static #onUseItem(event, target) {
-    return this.#dispatch({
-      type: "useItem",
-      itemId: target.dataset.itemId,
-      uuid: target.dataset.itemUuid,
-      event
-    });
+    return this.#useAction(target.dataset.itemId, target.dataset.itemUuid, event);
   }
 
   static #onOpenItem(event, target) {
@@ -458,7 +456,7 @@ export class PocketSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
   static #onPrimary(event, target) {
     const tile = this.element?.querySelector(".ms-stat-active");
     const label = tile?.querySelector(".ms-stat-label")?.textContent ?? "";
-    return this.#openRollSheet(this.#activeStatKey, label, event);
+    return this.#openTraitRoll(this.#activeStatKey, label, event);
   }
 
   static #onOpenDice() {
@@ -730,50 +728,340 @@ export class PocketSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
     (detail.actions ?? []).forEach((a, i) => {
       wrap.querySelector(`.ms-detail-act[data-i="${i}"]`)?.addEventListener("click", (ev) => {
         close();
+        // useItem (weapon attack / consumable use) routes through #useAction so the
+        // system's roll / spend popups are caught into pocket sheets like row taps.
+        if (a.intent === "useItem") return this.#useAction(a.itemId, a.uuid, ev);
         this.#dispatch({ type: a.intent, itemId: a.itemId, uuid: a.uuid, key: a.key, event: ev });
       });
     });
   }
 
   /**
-   * Open the roll bottom sheet for a stat: an Advantage / Normal / Disadvantage
-   * toggle, then Roll. Dispatches a `rollTrait` intent carrying the choice; the
-   * adapter performs the real system roll without the system's own dialog. The GM
-   * sets difficulty against the result, so the player sheet doesn't ask for it.
-   * Falls back to the plain primary intent when no rollable stat is armed.
+   * The duality roll bottom sheet, shared by trait rolls and roll actions: an
+   * Advantage / Normal / Disadvantage toggle plus any adapter-supplied controls
+   * (situational bonus, reaction, experiences, opt-out bonus effects). Collects the
+   * choices and hands them to `onSubmit`, which fires the right intent (rollTrait or
+   * useItem) — the adapter performs the real system roll without its own dialog. The
+   * GM sets difficulty against the result, so the player sheet doesn't ask for it.
    */
-  #openRollSheet(key, label, event) {
-    if (!key) return this.#dispatch({ type: "primary", event });
+  #openRollSheet({ title, event, opts = {}, advantage = "neutral", onSubmit } = {}) {
     const L = (k) => game.i18n.localize(`MOBILE_SHEET.roll.${k}`);
-    const safe = Handlebars.escapeExpression(label || L("title"));
+    const safe = Handlebars.escapeExpression(title || L("title"));
+    const sign = (n) => (n >= 0 ? `+${n}` : `−${Math.abs(n)}`);
+
+    const exps = opts.experiences ?? [];
+    const beffs = opts.bonusEffects ?? [];
+    const hopeMax = Number(opts.hope?.value) || 0; // Hope spendable right now (1 per experience).
+
+    const advClass = (a) => (a === advantage ? " ms-adv-on" : "");
+
+    const bonusRow = opts.bonus
+      ? `<div class="ms-roll-section ms-roll-bonus-row">
+           <span class="ms-roll-section-label">${L("bonus")}</span>
+           <div class="ms-roll-bonus">
+             <button type="button" class="ms-dice-mod-btn" data-bstep="-1">−</button>
+             <span class="ms-roll-bonus-val">+0</span>
+             <button type="button" class="ms-dice-mod-btn" data-bstep="1">+</button>
+           </div>
+         </div>`
+      : "";
+
+    const reactionRow = opts.reaction
+      ? `<button type="button" class="ms-roll-toggle" data-reaction>
+           <span class="ms-roll-toggle-label">${L("reaction")}</span>
+           <span class="ms-roll-toggle-hint">${L("reactionHint")}</span>
+         </button>`
+      : "";
+
+    const expRows = exps.length
+      ? `<div class="ms-roll-section">
+           <div class="ms-roll-section-head">
+             <span class="ms-roll-section-label">${L("experiences")}</span>
+             ${opts.hope ? `<span class="ms-roll-hope" data-hope></span>` : ""}
+           </div>
+           <div class="ms-roll-exps">
+             ${exps
+               .map(
+                 (e) => `<button type="button" class="ms-roll-exp" data-exp="${Handlebars.escapeExpression(e.key)}">
+               <span class="ms-roll-exp-name">${Handlebars.escapeExpression(e.name)}</span>
+               <span class="ms-roll-exp-val">${sign(Number(e.value) || 0)}</span>
+             </button>`
+               )
+               .join("")}
+           </div>
+         </div>`
+      : "";
+
+    // Bonus effects default ON (the system applies them); tapping opts one out of this roll.
+    const beffRows = beffs.length
+      ? `<div class="ms-roll-section">
+           <span class="ms-roll-section-label">${L("bonusEffects")}</span>
+           <div class="ms-roll-exps">
+             ${beffs
+               .map(
+                 (e) => `<button type="button" class="ms-roll-exp ms-roll-exp-on" data-beff="${Handlebars.escapeExpression(e.id)}">
+               <span class="ms-roll-exp-name">${Handlebars.escapeExpression(e.name)}</span>
+             </button>`
+               )
+               .join("")}
+           </div>
+         </div>`
+      : "";
+
     const html = `
       <div class="ms-sheet-head">
         <span class="ms-sheet-title">${safe}</span>
         <button type="button" class="ms-sheet-close" aria-label="Close">✕</button>
       </div>
       <div class="ms-roll-adv" role="group">
-        <button type="button" class="ms-adv-opt ms-adv-dis" data-adv="disadvantage">${L("disadvantage")}</button>
-        <button type="button" class="ms-adv-opt ms-adv-on" data-adv="neutral">${L("normal")}</button>
-        <button type="button" class="ms-adv-opt ms-adv-adv" data-adv="advantage">${L("advantage")}</button>
+        <button type="button" class="ms-adv-opt ms-adv-dis${advClass("disadvantage")}" data-adv="disadvantage">${L("disadvantage")}</button>
+        <button type="button" class="ms-adv-opt${advClass("neutral")}" data-adv="neutral">${L("normal")}</button>
+        <button type="button" class="ms-adv-opt ms-adv-adv${advClass("advantage")}" data-adv="advantage">${L("advantage")}</button>
       </div>
+      ${bonusRow}
+      ${reactionRow}
+      ${expRows}
+      ${beffRows}
       <button type="button" class="ms-roll-go">${L("roll")}</button>`;
 
     const mounted = this.#mountSheet(html);
     if (!mounted) return;
     const { wrap, close } = mounted;
 
-    let adv = "neutral";
+    let adv = advantage;
     wrap.querySelectorAll(".ms-adv-opt").forEach((b) =>
       b.addEventListener("click", () => {
         adv = b.dataset.adv;
         wrap.querySelectorAll(".ms-adv-opt").forEach((x) => x.classList.toggle("ms-adv-on", x === b));
       })
     );
+
+    // Situational bonus stepper (flat ±, clamped like the dice roller's modifier).
+    let bonus = 0;
+    const bonusEl = wrap.querySelector(".ms-roll-bonus-val");
+    wrap.querySelectorAll("[data-bstep]").forEach((b) =>
+      b.addEventListener("click", () => {
+        bonus = Math.max(-20, Math.min(20, bonus + Number(b.dataset.bstep)));
+        if (bonusEl) bonusEl.textContent = sign(bonus);
+      })
+    );
+
+    // Reaction toggle: a reaction roll generates no Fear (the adapter sets actionType).
+    let reaction = false;
+    const reactionBtn = wrap.querySelector("[data-reaction]");
+    reactionBtn?.addEventListener("click", () => {
+      reaction = !reaction;
+      reactionBtn.classList.toggle("ms-roll-toggle-on", reaction);
+    });
+
+    // Experiences: tap to apply, gated by spendable Hope (1 each). The adapter
+    // turns the selected ids into the system's experience modifiers + Hope cost.
+    const selected = new Set();
+    const hopeEl = wrap.querySelector("[data-hope]");
+    const paintExps = () => {
+      const left = hopeMax - selected.size;
+      if (hopeEl) hopeEl.textContent = `${L("hopeLeft")}: ${left}`;
+      wrap.querySelectorAll(".ms-roll-exp[data-exp]").forEach((b) => {
+        const on = selected.has(b.dataset.exp);
+        b.classList.toggle("ms-roll-exp-on", on);
+        b.classList.toggle("ms-roll-exp-spent", !on && left <= 0);
+      });
+    };
+    wrap.querySelectorAll(".ms-roll-exp[data-exp]").forEach((b) =>
+      b.addEventListener("click", () => {
+        const id = b.dataset.exp;
+        if (selected.has(id)) selected.delete(id);
+        else if (hopeMax - selected.size > 0) selected.add(id);
+        else return; // not enough Hope to add another
+        paintExps();
+      })
+    );
+    paintExps();
+
+    // Bonus effects: chips start on; tapping opts the effect out → collected in `off`.
+    const off = new Set();
+    wrap.querySelectorAll(".ms-roll-exp[data-beff]").forEach((b) =>
+      b.addEventListener("click", () => {
+        const id = b.dataset.beff;
+        if (off.has(id)) off.delete(id);
+        else off.add(id);
+        b.classList.toggle("ms-roll-exp-on", !off.has(id));
+      })
+    );
+
     wrap.querySelector(".ms-sheet-close").addEventListener("click", close);
     wrap.querySelector(".ms-sheet-backdrop").addEventListener("click", close);
     wrap.querySelector(".ms-roll-go").addEventListener("click", (ev) => {
       close();
-      this.#dispatch({ type: "rollTrait", key, advantage: adv, difficulty: null, event: ev });
+      onSubmit?.({
+        advantage: adv,
+        bonus,
+        reaction,
+        experiences: [...selected],
+        bonusOff: [...off],
+        event: ev
+      });
+    });
+  }
+
+  /** Open the duality roll sheet for a trait, then fire the rollTrait intent. */
+  #openTraitRoll(key, label, event) {
+    if (!key) return this.#dispatch({ type: "primary", event });
+    const L = (k) => game.i18n.localize(`MOBILE_SHEET.roll.${k}`);
+    return this.#openRollSheet({
+      title: label || L("title"),
+      event,
+      opts: this.#rollOptions ?? {},
+      onSubmit: (c) =>
+        this.#dispatch({
+          type: "rollTrait",
+          key,
+          advantage: c.advantage,
+          difficulty: null,
+          experiences: c.experiences,
+          bonus: c.bonus,
+          reaction: c.reaction,
+          bonusOff: c.bonusOff,
+          event: c.event
+        })
+    });
+  }
+
+  /**
+   * Use an item / action via the pocket sheet, catching the desktop popups the system
+   * would otherwise raise. Asks the adapter what configuring the use needs, then opens
+   * the matching bottom sheet: an action picker (multi-action item), the duality roll
+   * sheet (roll action), or a spend sheet (resource cost) — or just uses it directly.
+   */
+  async #useAction(itemId, uuid, event) {
+    const adapter = resolve(game.system.id);
+    let cfg = null;
+    try {
+      cfg = await adapter?.getActionConfig?.(this.actor, { itemId, uuid });
+    } catch (err) {
+      console.error(`${MODULE_ID} | getActionConfig threw`, err);
+    }
+    if (!cfg || cfg.kind === "direct") {
+      return this.#dispatch({ type: "useItem", itemId, uuid: cfg?.uuid ?? uuid, event });
+    }
+    if (cfg.kind === "pick") return this.#openActionPicker(cfg.actions, event);
+    if (cfg.kind === "duality") {
+      return this.#openRollSheet({
+        title: cfg.title,
+        event,
+        opts: cfg,
+        advantage: cfg.advantage ?? "neutral",
+        onSubmit: (c) =>
+          this.#dispatch({
+            type: "useItem",
+            uuid: cfg.uuid,
+            advantage: c.advantage,
+            experiences: c.experiences,
+            reaction: c.reaction,
+            bonusOff: c.bonusOff,
+            bonus: c.bonus,
+            event: c.event
+          })
+      });
+    }
+    if (cfg.kind === "spend") return this.#openSpendSheet(cfg, event);
+  }
+
+  /**
+   * Action picker bottom sheet: choose one of an item's actions (replaces the system's
+   * desktop ActionSelectionDialog), then recurse into #useAction for that action.
+   */
+  #openActionPicker(actions, event) {
+    const esc = (s) => Handlebars.escapeExpression(s ?? "");
+    const L = (k) => game.i18n.localize(`MOBILE_SHEET.action.${k}`);
+    const rows = (actions ?? [])
+      .map(
+        (a, i) => `<button type="button" class="ms-detail-act ms-detail-act-default" data-i="${i}">
+          <span class="ms-detail-act-label">${esc(a.name)}</span>
+        </button>`
+      )
+      .join("");
+    const html = `
+      <div class="ms-grab"></div>
+      <div class="ms-sheet-head">
+        <span class="ms-sheet-title">${esc(L("choose"))}</span>
+        <button type="button" class="ms-sheet-close" aria-label="Close">✕</button>
+      </div>
+      <div class="ms-detail-actions">${rows}</div>`;
+
+    const mounted = this.#mountSheet(html);
+    if (!mounted) return;
+    const { wrap, close } = mounted;
+    wrap.querySelector(".ms-sheet-panel")?.classList.add("ms-detail-panel");
+    wrap.querySelector(".ms-sheet-close").addEventListener("click", close);
+    wrap.querySelector(".ms-sheet-backdrop").addEventListener("click", close);
+    (actions ?? []).forEach((a, i) => {
+      wrap.querySelector(`.ms-detail-act[data-i="${i}"]`)?.addEventListener("click", () => {
+        close();
+        this.#useAction(null, a.uuid, event);
+      });
+    });
+  }
+
+  /**
+   * Spend sheet: confirm a non-roll action that costs resources (replaces the system's
+   * desktop spend window). Shows each cost; a − n + stepper for scalable costs (clamped
+   * to its max). On Spend, fires a useItem intent carrying the chosen scale per cost.
+   */
+  #openSpendSheet(cfg, event) {
+    const esc = (s) => Handlebars.escapeExpression(s ?? "");
+    const L = (k) => game.i18n.localize(`MOBILE_SHEET.spend.${k}`);
+    const safe = esc(cfg.title || L("title"));
+    const costs = cfg.costs ?? [];
+
+    const rows = costs
+      .map((c, i) => {
+        const stepper = c.scalable
+          ? `<div class="ms-roll-bonus">
+               <button type="button" class="ms-dice-mod-btn" data-cstep="-1" data-ci="${i}">−</button>
+               <span class="ms-spend-total" data-ctotal="${i}">${c.value}</span>
+               <button type="button" class="ms-dice-mod-btn" data-cstep="1" data-ci="${i}">+</button>
+             </div>`
+          : `<span class="ms-spend-total">${c.value}</span>`;
+        return `<div class="ms-roll-section ms-roll-bonus-row">
+            <span class="ms-roll-section-label">${esc(c.label)}</span>
+            ${stepper}
+          </div>`;
+      })
+      .join("");
+
+    const html = `
+      <div class="ms-sheet-head">
+        <span class="ms-sheet-title">${safe}</span>
+        <button type="button" class="ms-sheet-close" aria-label="Close">✕</button>
+      </div>
+      ${rows}
+      <button type="button" class="ms-roll-go">${L("spend")}</button>`;
+
+    const mounted = this.#mountSheet(html);
+    if (!mounted) return;
+    const { wrap, close } = mounted;
+
+    // Per-cost extra "scale" steps (0 = base cost), clamped so total ≤ max.
+    const scaleBy = costs.map(() => 0);
+    wrap.querySelectorAll("[data-cstep]").forEach((b) =>
+      b.addEventListener("click", () => {
+        const i = Number(b.dataset.ci);
+        const c = costs[i];
+        const maxScale = typeof c.max === "number" ? Math.max(0, Math.floor((c.max - c.value) / (c.step || 1))) : 99;
+        scaleBy[i] = Math.max(0, Math.min(maxScale, scaleBy[i] + Number(b.dataset.cstep)));
+        const totalEl = wrap.querySelector(`[data-ctotal="${i}"]`);
+        if (totalEl) totalEl.textContent = String(c.value + scaleBy[i] * (c.step || 1));
+      })
+    );
+
+    wrap.querySelector(".ms-sheet-close").addEventListener("click", close);
+    wrap.querySelector(".ms-sheet-backdrop").addEventListener("click", close);
+    wrap.querySelector(".ms-roll-go").addEventListener("click", (ev) => {
+      close();
+      const scale = {};
+      costs.forEach((c, i) => { if (c.scalable) scale[c.key] = scaleBy[i]; });
+      this.#dispatch({ type: "useItem", uuid: cfg.uuid, spend: true, scale, event: ev });
     });
   }
 

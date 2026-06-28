@@ -1198,6 +1198,99 @@ body.pocket-sheet-only .ms-fab {
 .ms-roll-go:active { transform: translateY(2px) scale(0.99); }
 .ms-roll-go:disabled { opacity: 0.45; cursor: default; transform: none; box-shadow: none; }
 
+/* roll sheet — situational bonus + experiences */
+.ms-roll-section { margin-bottom: 14px; }
+.ms-roll-section-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+.ms-roll-section-label {
+  font: 600 11px var(--ms-sans);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ms-muted);
+}
+.ms-roll-hope {
+  font: 700 11px var(--ms-mono);
+  color: var(--ms-accent);
+}
+
+.ms-roll-bonus-row {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  padding: 8px 12px;
+  border-radius: 12px;
+  border: 1px solid var(--ms-line2);
+  background: var(--ms-surf);
+}
+.ms-roll-bonus-row .ms-roll-section-label { flex: 1; }
+.ms-roll-bonus { display: flex; align-items: center; gap: 11px; }
+.ms-roll-bonus-val { min-width: 46px; text-align: center; font: 700 20px var(--ms-mono); color: var(--ms-fg); }
+
+.ms-roll-exps { display: flex; flex-wrap: wrap; gap: 8px; }
+.ms-roll-exp {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: var(--ms-tap-min);
+  padding: 9px 13px;
+  border-radius: 12px;
+  border: 1px solid var(--ms-line2);
+  background: var(--ms-surf);
+  color: var(--ms-soft);
+  font: 600 13px var(--ms-sans);
+  cursor: pointer;
+}
+.ms-roll-exp-val { font: 700 13px var(--ms-mono); color: var(--ms-muted); }
+.ms-roll-exp.ms-roll-exp-on {
+  border-color: var(--ms-accent);
+  background: color-mix(in oklab, var(--ms-accent) 16%, transparent);
+  color: var(--ms-fg);
+}
+.ms-roll-exp.ms-roll-exp-on .ms-roll-exp-val { color: var(--ms-accent); }
+.ms-roll-exp.ms-roll-exp-spent { opacity: 0.4; cursor: default; }
+.ms-roll-exp:active { transform: scale(0.97); }
+
+/* roll sheet — reaction toggle */
+.ms-roll-toggle {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  width: 100%;
+  margin-bottom: 14px;
+  padding: 11px 14px;
+  border-radius: 12px;
+  border: 1px solid var(--ms-line2);
+  background: var(--ms-surf);
+  color: var(--ms-soft);
+  cursor: pointer;
+}
+.ms-roll-toggle-label {
+  flex: 1;
+  text-align: left;
+  font: 600 12px var(--ms-sans);
+  letter-spacing: 0.04em;
+}
+.ms-roll-toggle-hint {
+  font: 700 10px var(--ms-mono);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ms-muted);
+}
+.ms-roll-toggle.ms-roll-toggle-on {
+  border-color: var(--ms-accent);
+  background: color-mix(in oklab, var(--ms-accent) 14%, transparent);
+  color: var(--ms-fg);
+}
+.ms-roll-toggle.ms-roll-toggle-on .ms-roll-toggle-hint { color: var(--ms-accent); }
+.ms-roll-toggle:active { transform: scale(0.99); }
+
+/* spend sheet — cost total readout */
+.ms-spend-total { min-width: 46px; text-align: center; font: 700 20px var(--ms-mono); color: var(--ms-fg); }
+
 /* dice roller sheet */
 .ms-dice-hint { margin: 6px 0 14px; font: 500 11px var(--ms-sans); color: var(--ms-muted); }
 .ms-dice-grid {

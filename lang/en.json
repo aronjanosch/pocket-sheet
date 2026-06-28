@@ -13,6 +13,7 @@
   "MOBILE_SHEET.action.vault": "Move to vault / loadout",
   "MOBILE_SHEET.action.chat": "Post to chat",
   "MOBILE_SHEET.action.rest": "Rest",
+  "MOBILE_SHEET.action.choose": "Choose an action",
 
   "MOBILE_SHEET.stat.spellcast": "Spellcasting trait",
 
@@ -26,7 +27,16 @@
   "MOBILE_SHEET.roll.normal": "Normal",
   "MOBILE_SHEET.roll.disadvantage": "Disadvantage",
   "MOBILE_SHEET.roll.difficulty": "Difficulty",
+  "MOBILE_SHEET.roll.bonus": "Situational Bonus",
+  "MOBILE_SHEET.roll.experiences": "Experiences",
+  "MOBILE_SHEET.roll.bonusEffects": "Bonus Effects",
+  "MOBILE_SHEET.roll.reaction": "Reaction Roll",
+  "MOBILE_SHEET.roll.reactionHint": "No Fear",
+  "MOBILE_SHEET.roll.hopeLeft": "Hope",
   "MOBILE_SHEET.roll.roll": "Roll",
+
+  "MOBILE_SHEET.spend.title": "Use",
+  "MOBILE_SHEET.spend.spend": "Spend",
 
   "MOBILE_SHEET.dice.title": "Roll Dice",
   "MOBILE_SHEET.dice.hint": "Tap a die to add it to the pool. Long-press or right-click to remove one.",

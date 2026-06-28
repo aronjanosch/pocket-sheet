@@ -40,6 +40,12 @@
  *   PURE (like getViewModel): build an in-sheet detail panel for one owned item.
  *   Returning `null` lets the shell fall back to the system's desktop item sheet.
  *   Optional — adapters without it always get the desktop fallback.
+ * @property {(actor: Actor, ref: {itemId?: string, uuid?: string, trait?: string}) => (ActionConfig | Promise<ActionConfig>)} [getActionConfig]
+ *   Inspect what desktop popup using an item/action WOULD raise, so the shell can open
+ *   a pocket bottom sheet instead of letting the system pop a desktop dialog. Reads
+ *   documents; never writes. The shell then fires a `useItem` (or `rollTrait`) intent
+ *   carrying the player's picks. Optional — adapters without it get the system's own
+ *   popups on use.
  */
 
 /**
@@ -58,12 +64,18 @@
  * @property {string} [key]     Stat key (rollStat/rollTrait), resource key (adjustResource/setResource), tag key (toggleTag), experience id (expChat), or button key (rest: "short"/"long").
  * @property {string} [formula] Dice expression for the generic dice roller (rollDice), e.g. "2d6 + 1d8 + 3".
  * @property {string} [itemId]  Item id (useItem / openItem / toggleItem / toChat / equip / vault).
- * @property {string} [uuid]    Sub-document uuid (useItem on an item's individual action).
+ * @property {string} [uuid]    Action uuid (useItem on a specific action — drives the system's action with the popups suppressed).
  * @property {number} [delta]   Resource step (adjustResource), e.g. +1 / -1.
  * @property {number} [value]   Absolute resource value (setResource) from slide-to-set.
  * @property {string} [statKey] Active stat key the shell passes with a `primary` action.
- * @property {"advantage"|"neutral"|"disadvantage"} [advantage] Roll-sheet advantage choice (rollTrait).
+ * @property {"advantage"|"neutral"|"disadvantage"} [advantage] Roll-sheet advantage choice (rollTrait / useItem roll action).
  * @property {number} [difficulty]              Optional roll difficulty from the roll sheet (rollTrait).
+ * @property {string[]} [experiences]           Experience ids to apply to the roll (rollTrait / useItem); each spends 1 hope.
+ * @property {number} [bonus]                   Flat situational bonus added to the roll (rollTrait).
+ * @property {boolean} [reaction]               Roll as a reaction — no Fear generated (rollTrait / useItem roll action).
+ * @property {string[]} [bonusOff]              Bonus-effect ids the player opted out of for this roll (rollTrait / useItem).
+ * @property {boolean} [spend]                  Mark a useItem as a non-roll resource spend (suppresses the spend / action-picker dialog).
+ * @property {Record<string, number>} [scale]  Per-cost extra scale steps for a spend action (useItem, keyed by cost key).
  * @property {Event}  [event]   Forwarded DOM event for modifier-key / dialog behavior.
  */
 
@@ -117,6 +129,58 @@
  * @typedef {object} Primary
  * @property {string} label    e.g. "✦ Duality Roll".
  * @property {string} [sub]    e.g. "STR +2" (default; shell may override).
+ * @property {RollOptions} [rollOptions] Extra controls the shell renders in the roll
+ *   bottom sheet (experiences to apply, current hope to gate them, a situational bonus).
+ */
+
+/**
+ * Optional roll-sheet augmentations. The shell renders these generically and folds
+ * the player's picks back into the rollTrait intent (`experiences`, `bonus`); the
+ * adapter owns the system meaning (modifiers, hope cost). Omit to show only the
+ * advantage toggle.
+ * @typedef {object} RollOptions
+ * @property {boolean} [bonus]            Show the flat situational-bonus stepper.
+ * @property {boolean} [reaction]         Show the reaction toggle (a reaction roll makes no Fear).
+ * @property {RollExperience[]} [experiences] Tap-to-apply experiences (each spends 1 hope).
+ * @property {RollBonusEffect[]} [bonusEffects] Opt-out bonus effects (rendered on by default).
+ * @property {{value:number, max:number|null}} [hope] Current hope, used to gate experience picks.
+ *
+ * @typedef {object} RollExperience
+ * @property {string} key    Experience id, forwarded in intent.experiences.
+ * @property {string} name   Display-ready name.
+ * @property {number} value  Signed modifier the experience adds.
+ *
+ * @typedef {object} RollBonusEffect
+ * @property {string} id     Active-effect id; deselecting adds it to intent.bonusOff.
+ * @property {string} name   Display-ready effect name.
+ */
+
+/**
+ * What configuring an item/action use requires — returned by `getActionConfig` so the
+ * shell opens the right pocket sheet (and which `useItem` intent fields to fill).
+ * @typedef {object} ActionConfig
+ * @property {"pick"|"duality"|"spend"|"direct"} kind
+ *   - `pick`  : the item has several actions; show a picker (`actions`), then re-ask for the chosen `uuid`.
+ *   - `duality`: a roll action; show the roll sheet (this object also carries RollOptions).
+ *   - `spend` : a non-roll resource cost; show the spend sheet (`costs`, `uses`).
+ *   - `direct`: nothing to configure; just fire `useItem`.
+ * @property {string} [uuid]   Action uuid to use (duality / spend / direct).
+ * @property {string} [title]  Display-ready action name for the sheet header.
+ * @property {"advantage"|"neutral"|"disadvantage"} [advantage] Default advantage (duality).
+ * @property {{uuid:string, name:string, icon?:string}[]} [actions] Choices (pick).
+ * @property {SpendCost[]} [costs] Resource costs to confirm (spend).
+ * @property {{value:number, max:number}} [uses] Limited uses, if any (spend).
+ * @property {boolean} [bonus] @property {boolean} [reaction]
+ * @property {RollExperience[]} [experiences] @property {RollBonusEffect[]} [bonusEffects]
+ * @property {{value:number, max:number|null}} [hope]   (duality — see RollOptions.)
+ *
+ * @typedef {object} SpendCost
+ * @property {string} key      Resource key (forwarded in intent.scale for scalable costs).
+ * @property {string} label    Display-ready resource label.
+ * @property {number} value    Base cost amount.
+ * @property {number} [step]   Increment per scale step. Default 1.
+ * @property {boolean} [scalable] Whether the player can scale this cost up.
+ * @property {number|null} [max] Maximum total when scalable.
  */
 
 /**

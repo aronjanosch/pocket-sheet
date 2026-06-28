@@ -466,11 +466,183 @@ function toggleVault(actor, itemId) {
   return item.update({ "system.inVault": !item.system?.inVault });
 }
 
-/** Use an item, or one of its embedded actions when an action uuid is given. */
+/** An item's embedded actions as a flat array (Collection | array), like Item#use reads. */
+function actionsOf(item) {
+  const a = item?.system?.actionsList ?? item?.system?.actions;
+  if (!a) return [];
+  if (Array.isArray(a)) return a;
+  if (typeof a.values === "function") return [...a.values()];
+  if (Array.isArray(a.contents)) return a.contents;
+  return [];
+}
+
+/** Localized resource label for a cost key (Hope/Stress/Armor/HP/Fear), via the system config. */
+function costLabel(key) {
+  const cfg = CONFIG?.DH?.GENERAL?.abilityCosts?.[key];
+  return cfg?.label ? game.i18n.localize(cfg.label) : key;
+}
+
+/** An action's costs, normalized for the spend sheet (label + scalable stepper bounds). */
+function describeCosts(action) {
+  const raw = action?.cost;
+  const list = Array.isArray(raw) ? raw : raw?.contents ?? [...(raw?.values?.() ?? [])];
+  return (list ?? [])
+    .filter((c) => c && c.key)
+    .map((c) => ({
+      key: c.key,
+      label: costLabel(c.key),
+      value: c.value ?? 0,
+      step: c.step ?? 1,
+      scalable: !!c.scalable,
+      max: typeof c.max === "number" ? c.max : null
+    }));
+}
+
+/** Map an action's stored advantage state to the shell's tri-toggle default. */
+function advChoice(advState) {
+  if (advState === "advantage") return "advantage";
+  if (advState === "disadvantage") return "disadvantage";
+  return "neutral";
+}
+
+/** One resolved action → the bottom sheet the shell should open before using it. */
+function describeAction(actor, action) {
+  if (!action) return { kind: "direct" };
+  if (action.hasRoll) {
+    return {
+      kind: "duality",
+      uuid: action.uuid,
+      title: action.name ?? "",
+      advantage: advChoice(action.roll?.advState),
+      ...rollOptions(actor) // experiences, hope, bonus, reaction, bonusEffects
+    };
+  }
+  const costs = describeCosts(action);
+  const uses = action.uses?.max ? { value: action.uses?.value ?? 0, max: action.uses.max } : null;
+  if (costs.length || uses) {
+    return { kind: "spend", uuid: action.uuid, title: action.name ?? "", costs, uses };
+  }
+  return { kind: "direct", uuid: action.uuid };
+}
+
+/**
+ * PURE-ish (reads documents, never writes): inspect what desktop popup an item/action
+ * use WOULD raise, so the shell can open a pocket sheet instead. Returns one of:
+ *   - { kind:"pick", actions } when an item has >1 action (the action chooser),
+ *   - { kind:"duality", uuid, …rollOptions } when the action has a roll,
+ *   - { kind:"spend", uuid, costs, uses } for a resource-spending action,
+ *   - { kind:"direct", uuid? } when nothing needs configuring (just use it).
+ * `ref` is { itemId } (a row), { uuid } (a specific action), or { trait } (a trait roll).
+ */
+async function getActionConfig(actor, ref = {}) {
+  if (ref.trait) {
+    return { kind: "duality", trait: ref.trait, advantage: "neutral", ...rollOptions(actor) };
+  }
+  if (ref.uuid) {
+    const action = await fromUuid(ref.uuid);
+    return describeAction(actor, action);
+  }
+  const item = actor?.items?.get(ref.itemId);
+  if (!item) return { kind: "direct" };
+  const actions = actionsOf(item);
+  if (actions.length > 1) {
+    return { kind: "pick", actions: actions.map((a) => ({ uuid: a.uuid, name: a.name ?? "", icon: a.typeIcon })) };
+  }
+  return describeAction(actor, actions[0]);
+}
+
+/**
+ * Use an action with the player's pocket-sheet choices injected, suppressing every
+ * desktop popup. The only seam is the synchronous `preUseAction` hook (fired after the
+ * config's roll/dialog are built, before the workflow) — so all choices are decided up
+ * front in the bottom sheet and applied here. A reaction generates no Fear; experiences
+ * add their modifier + a Hope cost; deselected bonus effects are dropped; a scalable
+ * cost's scale is set. The roll dialog is killed with `dialog.configure=false`; the
+ * action-picker / spend dialog with a synthetic `shiftKey` event.
+ */
+async function usePocketAction(actor, action, intent) {
+  const isSpend = !!intent.spend;
+  const marker = foundry.utils.randomID();
+  const exps = (intent.experiences ?? []).filter((id) => actor.system?.experiences?.[id]);
+  const bonusOff = intent.bonusOff ?? [];
+
+  const preId = Hooks.on(`${SYSTEM_ID}.preUseAction`, (act, config) => {
+    if (act?.uuid !== action.uuid) return;
+    config.__pocketMarker = marker;
+    config.dialog = { ...(config.dialog ?? {}), configure: false };
+
+    if (config.roll) {
+      const adv = advantageValue(intent.advantage);
+      if (adv != null) config.roll.advantage = adv;
+    }
+    if (intent.reaction) config.actionType = "reaction";
+
+    // Situational bonus → the system's free-text extra roll formula (added to terms).
+    const bonus = Number(intent.bonus);
+    if (Number.isFinite(bonus) && bonus !== 0) {
+      config.extraFormula = bonus > 0 ? String(bonus) : `(${bonus})`;
+    }
+
+    if (exps.length) {
+      config.experiences = [...(config.experiences ?? []), ...exps];
+      const costKey = actor.isNPC ? "fear" : "hope";
+      // `total` is set too: the system merges same-key costs by `total` (getRealCosts),
+      // so an action that already costs Hope would otherwise add `undefined` → NaN.
+      config.costs = [
+        ...(config.costs ?? []),
+        ...exps.map((id) => ({ extKey: id, key: costKey, value: 1, total: 1, enabled: true, name: actor.system?.experiences?.[id]?.name }))
+      ];
+    }
+
+    if (intent.scale && config.costs?.length) {
+      for (const cost of config.costs) {
+        const n = intent.scale[cost.key];
+        if (typeof n === "number" && cost.scalable) {
+          cost.scale = n;
+          cost.total = (cost.value ?? 0) + n * (cost.step ?? 1);
+        }
+      }
+    }
+
+    config.__pocketBonusOff = bonusOff;
+    Hooks.off(`${SYSTEM_ID}.preUseAction`, preId);
+  });
+  const postId = armBonusOffByMarker(marker);
+
+  const event = isSpend
+    ? { shiftKey: true, preventDefault() {}, stopPropagation() {} }
+    : intent.event ?? {};
+
+  try {
+    return await action.use(event);
+  } finally {
+    Hooks.off(`${SYSTEM_ID}.preUseAction`, preId);
+    if (postId) Hooks.off(`${SYSTEM_ID}.postRollConfiguration`, postId);
+  }
+}
+
+/** Like armBonusOff, but reads the opt-out ids stashed on the config by usePocketAction. */
+function armBonusOffByMarker(marker) {
+  const id = Hooks.on(`${SYSTEM_ID}.postRollConfiguration`, (roll, config) => {
+    if (config?.__pocketMarker !== marker) return;
+    const be = roll?.options?.bonusEffects;
+    const off = config.__pocketBonusOff ?? [];
+    if (be) for (const eid of off) if (be[eid]) be[eid].selected = false;
+    Hooks.off(`${SYSTEM_ID}.postRollConfiguration`, id);
+  });
+  return id;
+}
+
+/**
+ * Use an item or one of its actions. When the intent carries an action uuid we drive
+ * the system's own action with the pocket choices injected (popups suppressed); a bare
+ * itemId with no choices is a plain single-action use.
+ */
 async function useItem(actor, intent) {
   if (intent.uuid) {
     const action = await fromUuid(intent.uuid);
-    return can(action, "use") ? action.use({}) : undefined;
+    if (!can(action, "use")) return;
+    return usePocketAction(actor, action, intent);
   }
   return actor.items?.get(intent.itemId)?.use?.(intent.event);
 }
@@ -496,7 +668,7 @@ function advantageValue(choice) {
  * (2.x); the system still builds the Roll and posts the chat card — we never fake
  * dice. Falls back to the normal dialog roll when no config is supplied.
  */
-function rollTraitDirect(actor, intent) {
+async function rollTraitDirect(actor, intent) {
   if (typeof actor.rollTrait !== "function") return;
   const roll = { trait: intent.key, type: "trait" };
   const adv = advantageValue(intent.advantage);
@@ -504,7 +676,134 @@ function rollTraitDirect(actor, intent) {
   if (intent.difficulty != null && !Number.isNaN(Number(intent.difficulty))) {
     roll.difficulty = Number(intent.difficulty);
   }
-  return actor.rollTrait(intent.key, { dialog: { configure: false }, roll, event: intent.event });
+
+  const options = { dialog: { configure: false }, roll, event: intent.event };
+
+  // Experiences applied to the roll: each adds its modifier (the system reads
+  // `config.experiences` in D20Roll.configureModifiers) and costs 1 Hope (Fear for
+  // NPCs). The system's own roll dialog is where that pairing normally happens; we
+  // skip the dialog, so we mirror its config — selected ids + matching costs — by hand.
+  const exps = (intent.experiences ?? []).filter((id) => actor.system?.experiences?.[id]);
+  if (exps.length) {
+    options.experiences = exps;
+    const costKey = actor.isNPC ? "fear" : "hope";
+    options.costs = exps.map((id) => ({
+      extKey: id,
+      key: costKey,
+      value: 1,
+      total: 1,
+      enabled: true,
+      name: actor.system?.experiences?.[id]?.name
+    }));
+  }
+
+  // Situational bonus → the system's free-text extra roll formula (added to terms).
+  const bonus = Number(intent.bonus);
+  if (Number.isFinite(bonus) && bonus !== 0) {
+    options.extraFormula = bonus > 0 ? String(bonus) : `(${bonus})`;
+  }
+
+  // Reaction roll → no Fear generated (DualityRoll.addDualityResourceUpdates skips it).
+  if (intent.reaction) options.actionType = "reaction";
+
+  // Bonus effects the player opted out of for this roll, applied after the Roll is
+  // built (its bonusEffects list is constructed there) via the postRollConfiguration hook.
+  const marker = foundry.utils.randomID();
+  options.__pocketMarker = marker;
+  const hookId = armBonusOff(marker, intent.bonusOff);
+  try {
+    const config = await actor.rollTrait(intent.key, options);
+    await applyRollResources(config);
+    return config;
+  } finally {
+    if (hookId) Hooks.off(`${SYSTEM_ID}.postRollConfiguration`, hookId);
+  }
+}
+
+/**
+ * Apply per-roll bonus-effect opt-outs without the system dialog. The applicable
+ * effects are built inside the Roll constructor, so we wait for the (sync)
+ * `postRollConfiguration` hook — fired after build, before evaluate — and flip the
+ * matching `roll.options.bonusEffects[id].selected` off. Scoped to OUR roll via a
+ * unique marker on the config; self-removing. Returns the hook id (or null) so the
+ * caller can also tear it down if the roll never fires.
+ */
+function armBonusOff(marker, bonusOff) {
+  if (!bonusOff?.length) return null;
+  const id = Hooks.on(`${SYSTEM_ID}.postRollConfiguration`, (roll, config) => {
+    if (config?.__pocketMarker !== marker) return;
+    const be = roll?.options?.bonusEffects;
+    if (be) for (const eid of bonusOff) if (be[eid]) be[eid].selected = false;
+    Hooks.off(`${SYSTEM_ID}.postRollConfiguration`, id);
+  });
+  return id;
+}
+
+/**
+ * Apply a finished roll's resource changes. A DH roll *builds* its resource updates
+ * (Hope-on-Hope, Fear-on-Fear automation) and our experience costs into
+ * `config.resourceUpdates`/`config.costs`, but never *writes* them — the system's own
+ * sheet does that after the roll returns (DhCharacter #rollAttribute). We mirror that
+ * so automation and the Hope spend actually land. No-op when automation is off (the
+ * map stays empty) so the GM's settings are respected.
+ */
+async function applyRollResources(config) {
+  if (!config?.resourceUpdates) return;
+  const costs = (config.costs ?? []).filter((c) => c.enabled !== false);
+  if (costs.length) {
+    config.resourceUpdates.addResources(costs.map((c) => ({ ...c, value: -c.value })));
+  }
+  await config.resourceUpdates.updateResources();
+}
+
+/**
+ * Active effects on the actor that grant a roll bonus, surfaced as toggleable chips
+ * (default on) so a player can opt one out for a single roll — the mobile stand-in
+ * for the desktop dialog's bonus-effect list. APPROXIMATE: the system computes the
+ * exact applicable set inside the Roll constructor, which we can't run before the
+ * roll fires; we match enabled effects whose changes target a `system.bonuses.roll.*`
+ * key. The apply step keys off the real `roll.options.bonusEffects` by id, so an id
+ * that isn't actually applicable simply no-ops. PURE.
+ */
+function bonusEffectChoices(actor) {
+  const out = [];
+  let effects = [];
+  try {
+    effects = actor.appliedEffects ?? [...(actor.allApplicableEffects?.() ?? [])];
+  } catch (_) {
+    effects = [];
+  }
+  for (const eff of effects ?? []) {
+    if (!eff || eff.disabled) continue;
+    const changes = eff.changes ?? eff.system?.changes ?? [];
+    if (changes.some((c) => typeof c?.key === "string" && c.key.includes("system.bonuses.roll."))) {
+      out.push({ id: eff.id, name: eff.name ?? "" });
+    }
+  }
+  return out;
+}
+
+/**
+ * Roll-sheet augmentations the shell renders in the duality roll bottom sheet:
+ * the actor's experiences (tap to apply: +value, −1 Hope each), current spendable
+ * Hope to gate them, a situational flat bonus stepper, a reaction toggle, and any
+ * opt-out bonus effects. PURE.
+ */
+function rollOptions(actor) {
+  const exp = actor.system?.experiences ?? {};
+  const experiences = Object.entries(exp).map(([key, e]) => ({
+    key,
+    name: e?.name ?? "",
+    value: typeof e?.value === "number" ? e.value : 0
+  }));
+  const hope = actor.system?.resources?.hope;
+  return {
+    bonus: true,
+    reaction: true,
+    experiences,
+    bonusEffects: bonusEffectChoices(actor),
+    hope: hope ? { value: hope.value ?? 0, max: resolveMax("hope", hope) } : null
+  };
 }
 
 /**
@@ -737,6 +1036,12 @@ export const daggerheartAdapter = {
     return getItemDetail(actor, itemId);
   },
 
+  /** Inspect which desktop popup an item/action use would raise, so the shell can
+   *  open a pocket bottom sheet instead. Reads documents; never writes. */
+  getActionConfig(actor, ref) {
+    return getActionConfig(actor, ref);
+  },
+
   /** PURE: actor.system → themed, tabbed view model. No async, no DOM, no writes. */
   getViewModel(actor) {
     const vitals = [
@@ -768,7 +1073,7 @@ export const daggerheartAdapter = {
       identity: buildIdentity(actor),
       topStats: topStats(actor),
       tabs,
-      primary: { label: L("primary.duality") }
+      primary: { label: L("primary.duality"), rollOptions: rollOptions(actor) }
     };
   },
 
