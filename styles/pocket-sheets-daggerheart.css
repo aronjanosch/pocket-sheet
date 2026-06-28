@@ -2080,3 +2080,143 @@ body.pocket-sheets-daggerheart-only .ms-fab {
   color: var(--ms-fg);
 }
 .ms-jrnl-text :is(ul, ol) { margin: 0 0 10px; padding-left: 20px; }
+
+/* ===========================================================================
+   iPad (Compact) — 3-pane layout
+   Same view model, re-arranged for tablet width: the first ("vitals") tab
+   becomes the persistent LEFT rail (+ the Duality roll tray), the rest fill the
+   CENTER, and Chat/Journal move into an always-on RIGHT rail. Gated on the
+   .ms-ipad root class the shell adds when isTablet() — deterministic in a window
+   too, not just via a media query. Every block style is reused untouched; only
+   the pane scaffolding below is new.
+   =========================================================================== */
+
+/* The phone mode switch (Sheet/Chat/Journal) is replaced by the right rail. */
+.ms-ipad .ms-modes { display: none; }
+
+/* Identity becomes a horizontal top bar with inline, boxed top stats. */
+.ms-ipad .ms-identity {
+  padding: 13px 22px;
+  border-bottom: 1px solid var(--ms-line);
+}
+.ms-ipad .ms-name { font-size: 30px; }
+.ms-ipad .ms-topstats { flex-direction: row; gap: 10px; }
+.ms-ipad .ms-topstat {
+  flex-direction: column-reverse;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  min-width: 72px;
+  padding: 7px 12px;
+  background: var(--ms-surf2);
+  border: 1px solid var(--ms-line2);
+  border-radius: 12px;
+}
+.ms-ipad .ms-topstat-value {
+  min-width: 0;
+  padding: 0;
+  background: transparent;
+  border: 0;
+  font-size: 18px;
+}
+
+/* The three panes. Each scrolls independently; the row never scrolls itself. */
+.ms-ipad-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+}
+
+.ms-ipad .ms-rail {
+  flex: 0 0 auto;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  background: #1d181026;
+}
+.ms-ipad .ms-rail-left { width: 398px; border-right: 1px solid var(--ms-line); }
+.ms-ipad .ms-rail-right { width: 400px; border-left: 1px solid var(--ms-line); }
+
+.ms-ipad .ms-rail-scroll {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 11px;
+  padding: 12px 13px 8px;
+}
+.ms-ipad .ms-rail-scroll::-webkit-scrollbar { width: 0; }
+
+/* Left rail footer: the Duality roll tray, un-stickied (sits at the rail bottom). */
+.ms-ipad .ms-rail-tray {
+  flex: 0 0 auto;
+  border-top: 1px solid var(--ms-line);
+  padding: 11px 13px 13px;
+}
+
+/* Center: tab bar (fixed) over the scrolling content body. */
+.ms-ipad .ms-center {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+.ms-ipad .ms-center .ms-body { flex: 1 1 auto; min-height: 0; }
+
+/* Right rail: companion switcher (fixed) over the Chat/Journal partial body. */
+.ms-ipad .ms-companion-bar {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--ms-line);
+}
+.ms-ipad .ms-companion-tabs {
+  flex: 1;
+  display: flex;
+  gap: 3px;
+  background: #00000033;
+  border: 1px solid var(--ms-line);
+  border-radius: 10px;
+  padding: 3px;
+}
+.ms-ipad .ms-companion-tab {
+  flex: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 7px 4px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  cursor: pointer;
+  font: 600 11px var(--ms-sans);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ms-muted);
+  transition: color 0.15s ease, background 0.15s ease;
+}
+.ms-ipad .ms-companion-tab-active { background: var(--ms-surf2); color: var(--ms-accent); }
+.ms-ipad .ms-rail-collapse {
+  flex: 0 0 auto;
+  width: 38px;
+  height: 38px;
+  border-radius: 10px;
+  background: var(--ms-surf2);
+  border: 1px solid var(--ms-line2);
+  color: var(--ms-muted);
+  font-size: 16px;
+  cursor: pointer;
+}
+.ms-ipad .ms-rail-collapse:active { transform: scale(0.95); color: var(--ms-accent); }
+.ms-ipad .ms-rail-right .ms-body { flex: 1 1 auto; min-height: 0; }
+
+/* Collapsed right rail: a thin strip with only the expand button. */
+.ms-ipad .ms-rail-right.ms-rail-collapsed { width: 52px; }
+.ms-ipad .ms-rail-collapsed .ms-companion-tabs,
+.ms-ipad .ms-rail-collapsed .ms-body { display: none; }
+.ms-ipad .ms-rail-collapsed .ms-companion-bar { justify-content: center; padding: 10px 0; }

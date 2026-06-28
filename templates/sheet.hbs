@@ -1,4 +1,4 @@
-<div class="ms-root ms-state-{{state}}" style="{{themeStyle}}">
+<div class="ms-root ms-state-{{state}}{{#if isIpad}} ms-ipad{{/if}}" style="{{themeStyle}}">
 
   {{#if isOk}}
     <div class="ms-flourish"></div>
@@ -38,43 +38,101 @@
       {{/if}}
     </header>
 
-    <nav class="ms-modes" role="group">
-      {{#each modes}}
-        <button type="button" class="ms-mode{{#if this.active}} ms-mode-active{{/if}}"
-                data-action="selectMode" data-mode="{{this.id}}">
-          <span class="ms-mode-label">{{this.label}}</span>
-          {{#if this.badgeSlot}}<span class="ms-mode-badge{{#unless this.badge}} ms-mode-badge-hidden{{/unless}}">{{this.badge}}</span>{{/if}}
-        </button>
-      {{/each}}
-    </nav>
+    {{#if isIpad}}
+      {{!-- ===== iPad: three panes (vitals rail · content · companion rail) ===== --}}
+      <div class="ms-ipad-body">
 
-    {{#if isSheetMode}}
-      <nav class="ms-tabs">
-        {{#each tabs}}
-          <button type="button" class="ms-tab{{#if this.active}} ms-tab-active{{/if}}"
-                  data-action="selectTab" data-tab="{{this.id}}">{{this.label}}</button>
+        <aside class="ms-rail ms-rail-left">
+          <div class="ms-rail-scroll">
+            {{#each railBlocks}}{{> (lookup this "partial")}}{{/each}}
+          </div>
+          {{#if primary}}
+            <div class="ms-tray ms-rail-tray">
+              <button type="button" class="ms-primary" data-action="primary">
+                <span class="ms-primary-label">{{primary.label}}</span>
+                {{#if primary.sub}}<span class="ms-primary-sub">{{primary.sub}}</span>{{/if}}
+              </button>
+              <button type="button" class="ms-dice-btn" data-action="openDice"
+                      title="{{localize "MOBILE_SHEET.dice.title"}}"
+                      aria-label="{{localize "MOBILE_SHEET.dice.title"}}">⚅</button>
+            </div>
+          {{/if}}
+        </aside>
+
+        <section class="ms-center">
+          {{#if tabs.length}}
+            <nav class="ms-tabs">
+              {{#each tabs}}
+                <button type="button" class="ms-tab{{#if this.active}} ms-tab-active{{/if}}"
+                        data-action="selectTab" data-tab="{{this.id}}">{{this.label}}</button>
+              {{/each}}
+            </nav>
+          {{/if}}
+          <div class="ms-body">
+            {{#each blocks}}{{> (lookup this "partial")}}{{/each}}
+          </div>
+        </section>
+
+        <aside class="ms-rail ms-rail-right{{#if companion.collapsed}} ms-rail-collapsed{{/if}}">
+          <div class="ms-companion-bar">
+            <div class="ms-companion-tabs" role="group">
+              {{#each companion.tabs}}
+                <button type="button" class="ms-companion-tab{{#if this.active}} ms-companion-tab-active{{/if}}"
+                        data-action="selectCompanion" data-mode="{{this.id}}">
+                  <span class="ms-mode-label">{{this.label}}</span>
+                  {{#if this.badgeSlot}}<span class="ms-mode-badge{{#unless this.badge}} ms-mode-badge-hidden{{/unless}}">{{this.badge}}</span>{{/if}}
+                </button>
+              {{/each}}
+            </div>
+            <button type="button" class="ms-rail-collapse" data-action="toggleRight"
+                    title="{{localize "MOBILE_SHEET.ipad.collapse"}}"
+                    aria-label="{{localize "MOBILE_SHEET.ipad.collapse"}}">{{#if companion.collapsed}}«{{else}}»{{/if}}</button>
+          </div>
+          {{#if companion.isChat}}{{> (lookup . "chatPartial")}}{{/if}}
+          {{#if companion.isJournal}}{{> (lookup . "journalPartial")}}{{/if}}
+        </aside>
+
+      </div>
+    {{else}}
+      {{!-- ===== phone: single column with a Sheet / Chat / Journal mode switch ===== --}}
+      <nav class="ms-modes" role="group">
+        {{#each modes}}
+          <button type="button" class="ms-mode{{#if this.active}} ms-mode-active{{/if}}"
+                  data-action="selectMode" data-mode="{{this.id}}">
+            <span class="ms-mode-label">{{this.label}}</span>
+            {{#if this.badgeSlot}}<span class="ms-mode-badge{{#unless this.badge}} ms-mode-badge-hidden{{/unless}}">{{this.badge}}</span>{{/if}}
+          </button>
         {{/each}}
       </nav>
 
-      <div class="ms-body">
-        {{#each blocks}}{{> (lookup this "partial")}}{{/each}}
-      </div>
+      {{#if isSheetMode}}
+        <nav class="ms-tabs">
+          {{#each tabs}}
+            <button type="button" class="ms-tab{{#if this.active}} ms-tab-active{{/if}}"
+                    data-action="selectTab" data-tab="{{this.id}}">{{this.label}}</button>
+          {{/each}}
+        </nav>
 
-      {{#if primary}}
-        <div class="ms-tray">
-          <button type="button" class="ms-primary" data-action="primary">
-            <span class="ms-primary-label">{{primary.label}}</span>
-            {{#if primary.sub}}<span class="ms-primary-sub">{{primary.sub}}</span>{{/if}}
-          </button>
-          <button type="button" class="ms-dice-btn" data-action="openDice"
-                  title="{{localize "MOBILE_SHEET.dice.title"}}"
-                  aria-label="{{localize "MOBILE_SHEET.dice.title"}}">⚅</button>
+        <div class="ms-body">
+          {{#each blocks}}{{> (lookup this "partial")}}{{/each}}
         </div>
-      {{/if}}
-    {{/if}}
 
-    {{#if isChatMode}}{{> (lookup . "chatPartial")}}{{/if}}
-    {{#if isJournalMode}}{{> (lookup . "journalPartial")}}{{/if}}
+        {{#if primary}}
+          <div class="ms-tray">
+            <button type="button" class="ms-primary" data-action="primary">
+              <span class="ms-primary-label">{{primary.label}}</span>
+              {{#if primary.sub}}<span class="ms-primary-sub">{{primary.sub}}</span>{{/if}}
+            </button>
+            <button type="button" class="ms-dice-btn" data-action="openDice"
+                    title="{{localize "MOBILE_SHEET.dice.title"}}"
+                    aria-label="{{localize "MOBILE_SHEET.dice.title"}}">⚅</button>
+          </div>
+        {{/if}}
+      {{/if}}
+
+      {{#if isChatMode}}{{> (lookup . "chatPartial")}}{{/if}}
+      {{#if isJournalMode}}{{> (lookup . "journalPartial")}}{{/if}}
+    {{/if}}
   {{/if}}
 
   {{#if isEmpty}}

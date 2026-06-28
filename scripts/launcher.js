@@ -12,21 +12,15 @@
  * the desktop experience byte-for-byte vanilla.
  */
 
-import { MODULE_ID } from "./constants.js";
+import { MODULE_ID, isPhone, isTablet, isPocketDevice } from "./constants.js";
 import { resolve } from "./registry.js";
 import { PocketSheet } from "./sheet.js";
 
 const { ApplicationV2, HandlebarsApplicationMixin } = foundry.applications.api;
 
 // --- mobile detection + activation setting ---------------------------------
-
-/** Touch-primary AND phone/tablet-width. Both, to avoid false hits on a resized
- *  desktop window or a touch laptop. Browser-standard — identical on v13/v14. */
-export function isMobile() {
-  const coarse = window.matchMedia?.("(pointer: coarse)")?.matches ?? false;
-  const narrow = window.matchMedia?.("(max-width: 768px)")?.matches ?? false;
-  return coarse && narrow;
-}
+// Detection itself lives in constants.js (so sheet.js can share it without an import
+// cycle); the launcher only decides what to DO with it.
 
 function activationMode() {
   return game.settings.get(MODULE_ID, "activation");
@@ -35,13 +29,13 @@ function activationMode() {
 /** Should the sheet auto-open on `ready`? */
 function shouldActivate() {
   const mode = activationMode();
-  return mode === "always" || (mode === "auto" && isMobile());
+  return mode === "always" || (mode === "auto" && isPocketDevice());
 }
 
 /** Should the persistent launcher button exist? Always on mobile (a way back in,
  *  even when auto-open is off); on desktop only when explicitly forced on. */
 function shouldShowFab() {
-  return isMobile() || activationMode() === "always";
+  return isPocketDevice() || activationMode() === "always";
 }
 
 /** Register the client-scope activation setting. Call from `init`. */
@@ -105,7 +99,7 @@ export async function applyMobileCanvasMode() {
     return;
   }
 
-  const want = isMobile();
+  const want = isPocketDevice();
   const off = game.settings.get("core", "noCanvas");
   const managed = game.settings.get(MODULE_ID, "canvasManaged");
 
@@ -283,19 +277,44 @@ function installLauncherFab() {
   document.body.appendChild(btn);
 }
 
-// --- phone "sheet-only" chrome --------------------------------------------
+// --- pocket "sheet-only" chrome -------------------------------------------
 
 /**
- * On a phone with the canvas off, strip Foundry's chrome (nav, sidebar, hotbar,
- * controls, players — all under `#interface`) and let the sheet fill the screen.
- * Pure presentation: a single body class drives the CSS, fully reversible. The
- * sheet and launcher render on `<body>`, outside `#interface`, so they survive.
- * Gated on the canvas actually being off, so a phone that keeps the map keeps
- * its UI too.
+ * On a pocket device (phone or tablet) with the canvas off, strip Foundry's chrome
+ * (nav, sidebar, hotbar, controls, players — all under `#interface`) and let the
+ * sheet fill the screen. Pure presentation: a single body class drives the CSS,
+ * fully reversible. The sheet and launcher render on `<body>`, outside `#interface`,
+ * so they survive. Gated on the canvas actually being off, so a device that keeps the
+ * map keeps its UI too. The iPad layout itself is chosen by the sheet (see `isTablet`).
  */
 export function applyMobileChrome() {
-  const on = isMobile() && game.settings.get("core", "noCanvas");
+  const on = isPocketDevice() && game.settings.get("core", "noCanvas");
   document.body.classList.toggle("pocket-sheets-daggerheart-only", on);
+}
+
+// --- layout watcher (orientation / resize) ---------------------------------
+
+/**
+ * Re-evaluate layout when the viewport crosses the phone↔tablet breakpoints (rotating
+ * an iPad, resizing a window). Re-applies the sheet-only chrome and re-renders any open
+ * PocketSheet so it picks the right layout (1-column phone ↔ 3-pane iPad). Debounced;
+ * idempotent; installed once. Pure presentation — no world data touched.
+ */
+let _layoutTimer;
+function installLayoutWatcher() {
+  const onChange = () => {
+    clearTimeout(_layoutTimer);
+    _layoutTimer = setTimeout(() => {
+      applyMobileChrome();
+      for (const app of foundry.applications.instances.values()) {
+        if (app instanceof PocketSheet) app.render();
+      }
+    }, 150);
+  };
+  // matchMedia change covers orientation flips; resize covers window drags.
+  window.matchMedia?.("(max-width: 768px)")?.addEventListener?.("change", onChange);
+  window.matchMedia?.("(max-width: 1366px)")?.addEventListener?.("change", onChange);
+  window.addEventListener("resize", onChange, { passive: true });
 }
 
 // --- entry point (call from `ready`) ---------------------------------------
@@ -307,6 +326,7 @@ export function applyMobileChrome() {
 export function activateLauncher() {
   installDiceShim();
   applyMobileChrome();
+  installLayoutWatcher();
   // In fullscreen sheet-only mode the sheet can't be closed and carries its own
   // character switcher (tap the portrait), so the FAB is redundant — skip it.
   const sheetOnly = document.body.classList.contains("pocket-sheets-daggerheart-only");

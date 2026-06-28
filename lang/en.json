@@ -56,6 +56,8 @@
   "MOBILE_SHEET.mode.chat": "Chat",
   "MOBILE_SHEET.mode.journal": "Journal",
 
+  "MOBILE_SHEET.ipad.collapse": "Collapse / expand the side panel",
+
   "MOBILE_SHEET.chat.placeholder": "Message the party…",
   "MOBILE_SHEET.chat.send": "Send",
   "MOBILE_SHEET.chat.empty": "No messages yet.",

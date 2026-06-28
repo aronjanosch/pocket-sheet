@@ -12,7 +12,7 @@
  * generic — it inspects only the normalized shapes, never the system.
  */
 
-import { MODULE_ID } from "./constants.js";
+import { MODULE_ID, isTablet } from "./constants.js";
 import { resolve } from "./registry.js";
 
 const { HandlebarsApplicationMixin } = foundry.applications.api;
@@ -56,6 +56,10 @@ export class PocketSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
   #lastRoll = null;
   /** Top-level mode: the sheet itself, the table chat, or the journal. Shell-local. */
   #activeMode = "sheet";
+  /** iPad layout only: which screen the always-on right rail shows ("chat"|"journal"),
+   *  and whether the rail is collapsed. Shell-local; never written to the actor. */
+  #companionMode = "chat";
+  #rightCollapsed = false;
   /** Journal browse state (read-only): which entry is open, which page, the search query. */
   #journalEntryId = null;
   #journalPage = 0;
@@ -93,6 +97,8 @@ export class PocketSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
       selectTab: PocketSheet.#onSelectTab,
       selectStat: PocketSheet.#onSelectStat,
       selectMode: PocketSheet.#onSelectMode,
+      selectCompanion: PocketSheet.#onSelectCompanion,
+      toggleRight: PocketSheet.#onToggleRight,
       openJournalEntry: PocketSheet.#onOpenJournalEntry,
       journalBack: PocketSheet.#onJournalBack,
       journalPage: PocketSheet.#onJournalPage,
@@ -137,43 +143,66 @@ export class PocketSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
       return { ...base, state: "empty", isEmpty: true, identity: this.#identity(vm) };
     }
 
-    // Resolve shell-local selections, defaulting on first render / stale ids.
-    if (!tabs.some((t) => t.id === this.#activeTab)) this.#activeTab = tabs[0].id;
+    // iPad (3-pane) vs phone (single column). On iPad the FIRST tab becomes the
+    // persistent left "vitals" rail and the rest fill the center; the standalone
+    // Sheet/Chat/Journal mode switch is replaced by an always-on right rail.
+    const isIpad = this.#isIpad();
+    const railTab = isIpad ? tabs[0] : null;
+    const contentTabs = isIpad ? tabs.slice(1) : tabs;
+
+    // Resolve shell-local selections, defaulting on first render / stale ids. The
+    // active (center) tab is constrained to the selectable set so the rail tab is
+    // never the center's active tab on iPad.
+    if (!contentTabs.some((t) => t.id === this.#activeTab)) {
+      this.#activeTab = contentTabs[0]?.id ?? tabs[0].id;
+    }
     this.#ensureActiveStat(tabs);
 
-    const active = tabs.find((t) => t.id === this.#activeTab) ?? tabs[0];
-    const blocks = (active.blocks ?? [])
-      .filter((b) => KNOWN_KINDS.has(b?.kind))
-      .map((b) => this.#massage(b));
-
-    // Enrich any info block the adapter flagged (it can't — getViewModel is sync/pure).
-    // Render-time, async, shell-owned: core Foundry enrichment, no system knowledge.
-    for (const b of blocks) {
-      if (b.kind === "info" && b.enrich && b.html) b.html = await this.#enrich(b.html, b.relativeToUuid);
-    }
+    // On iPad the rail already holds tab[0]; if that's the only tab the center is empty
+    // (never duplicate vitals). On phone `active` always resolves to a real tab.
+    const active = contentTabs.find((t) => t.id === this.#activeTab) ?? contentTabs[0] ?? null;
+    const blocks = active ? await this.#blocksFor(active) : [];
+    const railBlocks = railTab ? await this.#blocksFor(railTab) : null;
 
     const theme = this.#theme(vm.theme);
-    const primary = this.#primary(vm.primary, active.blocks ?? []);
+    // The armed-stat sub-line reads the traits grid, which lives in the rail on iPad.
+    const primaryBlocks = (isIpad ? railTab?.blocks : active.blocks) ?? [];
+    const primary = this.#primary(vm.primary, primaryBlocks);
     this.#rollOptions = vm.primary?.rollOptions ?? null;
 
-    // Top-level mode (Sheet / Chat / Journal). Sheet is the view model above; Chat and
-    // Journal are core-Foundry, shell-owned screens built here (no adapter, no actor.system).
+    // Top-level mode (phone): Sheet / Chat / Journal. On iPad the sheet is always shown
+    // and Chat/Journal move into the always-on right rail (the companion switcher).
     const mode = this.#activeMode;
-    const isChatMode = mode === "chat";
-    const isJournalMode = mode === "journal";
-    const isSheetMode = !isChatMode && !isJournalMode;
+    const isChatMode = !isIpad && mode === "chat";
+    const isJournalMode = !isIpad && mode === "journal";
+    const isSheetMode = isIpad || (!isChatMode && !isJournalMode);
+
+    // Chat/Journal are core-Foundry, shell-owned screens (no adapter, no actor.system).
+    // Their partials read top-level `chat`/`journal`, so build whichever is showing — the
+    // phone mode swap or, on iPad, the right rail's companion mode.
+    const showChat = isIpad ? this.#companionMode === "chat" : isChatMode;
+    const showJournal = isIpad ? this.#companionMode === "journal" : isJournalMode;
+    const chat = showChat ? await this.#chatContext() : null;
+    const journal = showJournal ? await this.#journalContext() : null;
+
+    const companion = isIpad
+      ? { isChat: showChat, isJournal: showJournal, collapsed: this.#rightCollapsed, tabs: this.#companionTabs() }
+      : null;
 
     return {
       ...base,
       state: "ok",
       isOk: true,
+      isIpad,
       theme,
       themeStyle: `--ms-accent:${theme.accent}; --ms-accent-deep:${theme.accentDeep};`,
       identity: this.#identity(vm),
       canSwitch: this.#switchableCount() > 1,
       topStats: (vm.topStats ?? []).map((s) => ({ ...s, value: String(s.value) })),
-      tabs: tabs.map((t) => ({ id: t.id, label: t.label, active: t.id === active.id })),
+      tabs: contentTabs.map((t) => ({ id: t.id, label: t.label, active: t.id === active?.id })),
       blocks,
+      railBlocks,
+      companion,
       primary,
       modes: this.#modes(isChatMode),
       isSheetMode,
@@ -181,9 +210,37 @@ export class PocketSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
       isJournalMode,
       chatPartial: `modules/${MODULE_ID}/templates/chat.hbs`,
       journalPartial: `modules/${MODULE_ID}/templates/journal.hbs`,
-      chat: isChatMode ? await this.#chatContext() : null,
-      journal: isJournalMode ? await this.#journalContext() : null
+      chat,
+      journal
     };
+  }
+
+  /** True when the viewport is iPad-class (drives the 3-pane layout). Defensive. */
+  #isIpad() {
+    try { return isTablet(); } catch (_) { return false; }
+  }
+
+  /** Massage a tab's blocks into render-ready data, then enrich any flagged info block
+   *  (the async step getViewModel can't do). Used for both the center and the iPad rail. */
+  async #blocksFor(tab) {
+    const blocks = (tab?.blocks ?? [])
+      .filter((b) => KNOWN_KINDS.has(b?.kind))
+      .map((b) => this.#massage(b));
+    for (const b of blocks) {
+      if (b.kind === "info" && b.enrich && b.html) b.html = await this.#enrich(b.html, b.relativeToUuid);
+    }
+    return blocks;
+  }
+
+  /** The iPad right-rail switcher: Chat / Journal, with an unread badge on Chat. */
+  #companionTabs() {
+    const L = (k) => game.i18n.localize(`MOBILE_SHEET.mode.${k}`);
+    const onChat = this.#companionMode === "chat";
+    const unread = onChat ? 0 : this.#unreadCount();
+    return [
+      { id: "chat", label: L("chat"), active: onChat, badgeSlot: true, badge: this.#badgeText(unread) },
+      { id: "journal", label: L("journal"), active: this.#companionMode === "journal" }
+    ];
   }
 
   /** The three top-level modes for the switcher, with an unread badge on Chat. */
@@ -823,6 +880,21 @@ export class PocketSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
     if (mode === this.#activeMode) return;
     this.#activeMode = mode;
     if (mode === "chat") this.#unreadFrom = Date.now();
+    this.render();
+  }
+
+  /** iPad right rail: switch its always-on Chat/Journal screen. Opening Chat clears unread. */
+  static #onSelectCompanion(event, target) {
+    const mode = target.dataset.mode;
+    if (mode === this.#companionMode) return;
+    this.#companionMode = mode;
+    if (mode === "chat") this.#unreadFrom = Date.now();
+    this.render();
+  }
+
+  /** iPad right rail: collapse / expand it to reclaim width for the center. */
+  static #onToggleRight() {
+    this.#rightCollapsed = !this.#rightCollapsed;
     this.render();
   }
 
