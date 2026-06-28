@@ -357,9 +357,9 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 30px;
-  height: 30px;
-  border-radius: 8px;
+  width: 24px;
+  height: 24px;
+  border-radius: 7px;
   color: var(--tone);
   background: color-mix(in oklab, var(--tone) 12%, transparent);
   border: 1px solid color-mix(in oklab, var(--tone) 40%, transparent);
@@ -383,14 +383,14 @@
 .ms-itemres-dice {
   display: flex;
   flex-wrap: wrap;
-  gap: 9px;
+  gap: 7px;
   flex: 1 1 auto;
 }
 
 .ms-itemres-die {
   position: relative;
-  width: 42px;
-  height: 42px;
+  width: 34px;
+  height: 34px;
   flex: 0 0 auto;
   display: inline-flex;
   align-items: center;
@@ -412,7 +412,7 @@
 
 .ms-itemres-die-val {
   position: relative;
-  font: 700 15px var(--ms-mono);
+  font: 700 12px var(--ms-mono);
   color: #2a2114;
   text-shadow: 0 1px 0 #ffffff55;
 }
@@ -428,21 +428,21 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  font: 700 22px var(--ms-sans);
+  font: 700 18px var(--ms-sans);
   color: var(--ms-stress);
 }
 
 .ms-itemres-val {
   min-width: 2.5em;
   text-align: center;
-  font: 700 15px var(--ms-mono);
+  font: 700 12px var(--ms-mono);
   color: var(--ms-fg);
 }
 
 .ms-itemres-die-single {
   position: static;
-  width: 30px;
-  height: 30px;
+  width: 24px;
+  height: 24px;
   margin-right: auto;
 }
 
