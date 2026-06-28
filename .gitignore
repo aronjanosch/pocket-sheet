@@ -1,6 +1,9 @@
 # OS cruft
 .DS_Store
 
+# local-only Claude Code guidance
+CLAUDE.md
+
 # build output — release assets, not source
 dist/
 
