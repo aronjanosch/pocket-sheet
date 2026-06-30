@@ -12,7 +12,7 @@
  * the desktop experience byte-for-byte vanilla.
  */
 
-import { MODULE_ID, isPhone, isTablet, isPocketDevice } from "./constants.js";
+import { MODULE_ID, isPocketDevice } from "./constants.js";
 import { resolve } from "./registry.js";
 import { PocketSheet } from "./sheet.js";
 
@@ -165,10 +165,10 @@ export async function applyMobileCanvasMode() {
     return;
   }
 
-  // Kill the canvas on a pocket device unless the user opted out via activation=never.
-  // Not simply pocketModeActive(): activation=always on a desktop GM must NOT force
-  // their map off — only real pocket devices ever lose the canvas.
-  const want = isPocketDevice() && activationMode() !== "never";
+  // Kill the canvas whenever pocket mode is active on this device: `auto` on a pocket
+  // device, or `always` anywhere (incl. a desktop driven by the toggle macro). `never`
+  // always keeps the map. Mirrors pocketModeActive() exactly.
+  const want = pocketModeActive();
   const off = game.settings.get("core", "noCanvas");
   const managed = game.settings.get(MODULE_ID, "canvasManaged");
 
@@ -367,15 +367,16 @@ function installEnterFab() {
 // --- pocket "sheet-only" chrome -------------------------------------------
 
 /**
- * On a pocket device (phone or tablet) with the canvas off, strip Foundry's chrome
- * (nav, sidebar, hotbar, controls, players — all under `#interface`) and let the
- * sheet fill the screen. Pure presentation: a single body class drives the CSS,
- * fully reversible. The sheet and launcher render on `<body>`, outside `#interface`,
- * so they survive. Gated on the canvas actually being off, so a device that keeps the
- * map keeps its UI too. The iPad layout itself is chosen by the sheet (see `isTablet`).
+ * When pocket mode is active with the canvas off, strip Foundry's chrome (nav, sidebar,
+ * hotbar, controls, players — all under `#interface`) and let the sheet fill the screen.
+ * Pure presentation: a single body class drives the CSS, fully reversible. The sheet and
+ * launcher render on `<body>`, outside `#interface`, so they survive. Gated on the canvas
+ * actually being off; `pocketModeActive()` covers a desktop forced in by the toggle macro
+ * (`always`), not just hardware pocket devices. The 3-pane layout is chosen by the sheet
+ * (see `useTabletLayout`), which keys off this same body class.
  */
 export function applyMobileChrome() {
-  const on = isPocketDevice() && game.settings.get("core", "noCanvas");
+  const on = pocketModeActive() && game.settings.get("core", "noCanvas");
   document.body.classList.toggle("pocket-sheets-daggerheart-only", on);
 }
 

@@ -40,3 +40,17 @@ export function isTablet() {
 export function isPocketDevice() {
   return isPhone() || isTablet();
 }
+
+/** True while THIS device is in fullscreen sheet-only pocket mode (launcher set the body
+ *  class after killing the canvas). Lets the sheet/layout react to a *forced* pocket mode
+ *  (the toggle macro on a desktop) instead of only hardware detection. */
+export function inPocketFullscreen() {
+  return document.body?.classList?.contains("pocket-sheets-daggerheart-only") ?? false;
+}
+
+/** Should the 3-pane (tablet) layout be used? Real tablets always; plus any device forced
+ *  into fullscreen pocket mode on a wide-enough viewport — so a desktop running the toggle
+ *  macro gets the same 3-pane layout, not the phone single column. */
+export function useTabletLayout() {
+  return isTablet() || (inPocketFullscreen() && mq("(min-width: 769px)"));
+}

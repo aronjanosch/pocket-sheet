@@ -12,7 +12,7 @@
  * generic — it inspects only the normalized shapes, never the system.
  */
 
-import { MODULE_ID, isTablet } from "./constants.js";
+import { MODULE_ID, useTabletLayout } from "./constants.js";
 import { resolve } from "./registry.js";
 
 const { HandlebarsApplicationMixin } = foundry.applications.api;
@@ -217,9 +217,10 @@ export class PocketSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
     };
   }
 
-  /** True when the viewport is iPad-class (drives the 3-pane layout). Defensive. */
+  /** True when the 3-pane (tablet) layout should be used — a real tablet, or any device
+   *  forced fullscreen into pocket mode on a wide viewport (desktop toggle). Defensive. */
   #isIpad() {
-    try { return isTablet(); } catch (_) { return false; }
+    try { return useTabletLayout(); } catch (_) { return false; }
   }
 
   /** True when this device is running in fullscreen sheet-only pocket mode (canvas off,
