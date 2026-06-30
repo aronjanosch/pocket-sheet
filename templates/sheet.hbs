@@ -1,5 +1,13 @@
 <div class="ms-root ms-state-{{state}}{{#if isIpad}} ms-ipad{{/if}}" style="{{themeStyle}}">
 
+  {{#if canExitPocket}}
+    <button type="button" class="ms-exit-pocket" data-action="exitPocket"
+            title="{{localize "MOBILE_SHEET.launcher.exitTitle"}}"
+            aria-label="{{localize "MOBILE_SHEET.launcher.exitTitle"}}">
+      <i class="fas fa-up-right-and-down-left-from-center"></i>
+    </button>
+  {{/if}}
+
   {{#if isOk}}
     <div class="ms-flourish"></div>
 

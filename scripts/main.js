@@ -15,7 +15,7 @@
 import { MODULE_ID } from "./constants.js";
 import { register, resolve } from "./registry.js";
 import { PocketSheet, registerPocketSheet } from "./sheet.js";
-import { registerActivationSettings, activateLauncher, applyMobileCanvasMode } from "./launcher.js";
+import { registerActivationSettings, activateLauncher, applyMobileCanvasMode, enterPocketMode, exitPocketMode } from "./launcher.js";
 import { daggerheartAdapter } from "../adapters/daggerheart.js";
 
 export { MODULE_ID };
@@ -25,10 +25,12 @@ export { MODULE_ID };
  * @property {typeof register} register
  * @property {typeof resolve}  resolve
  * @property {typeof PocketSheet} PocketSheet
+ * @property {typeof enterPocketMode} enterPocketMode  Switch this device into pocket mode + reload.
+ * @property {typeof exitPocketMode}  exitPocketMode   Switch this device back to full Foundry + reload.
  */
 
 /** @type {PocketSheetApi} */
-const api = { register, resolve, PocketSheet };
+const api = { register, resolve, PocketSheet, enterPocketMode, exitPocketMode };
 
 Hooks.once("init", () => {
   const module = game.modules.get(MODULE_ID);

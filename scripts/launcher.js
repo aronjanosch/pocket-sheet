@@ -26,16 +26,41 @@ function activationMode() {
   return game.settings.get(MODULE_ID, "activation");
 }
 
-/** Should the sheet auto-open on `ready`? */
-function shouldActivate() {
+/** Is pocket mode active on THIS device? The single on/off behind auto-open, the
+ *  launcher button, and the canvas-kill. `never` = full desktop Foundry even on an
+ *  iPad (the escape hatch for an iPad user who wants to play with the map). */
+function pocketModeActive() {
   const mode = activationMode();
-  return mode === "always" || (mode === "auto" && isPocketDevice());
+  if (mode === "never") return false;
+  if (mode === "always") return true;
+  return isPocketDevice();            // "auto"
 }
 
-/** Should the persistent launcher button exist? Always on mobile (a way back in,
- *  even when auto-open is off); on desktop only when explicitly forced on. */
+/** Should the sheet auto-open on `ready`? */
+function shouldActivate() {
+  return pocketModeActive();
+}
+
+/** Should the persistent launcher button exist? Whenever pocket mode is active —
+ *  on `never` there's no button, so the device behaves like vanilla Foundry. */
 function shouldShowFab() {
-  return isPocketDevice() || activationMode() === "always";
+  return pocketModeActive();
+}
+
+/** Turn pocket mode ON for THIS device and reload (canvas state only applies after a
+ *  reload). On a phone/tablet we restore `auto` (the clean default, re-detected); on a
+ *  desktop we force `always`, since `auto` would resolve to off there. The inverse FAB
+ *  and the supplied macro both call this. */
+export async function enterPocketMode() {
+  await game.settings.set(MODULE_ID, "activation", isPocketDevice() ? "auto" : "always");
+  location.reload();
+}
+
+/** Turn pocket mode OFF for THIS device (full Foundry interface, map on) and reload.
+ *  Called by the in-sheet exit button and by `api.exitPocketMode()`. */
+export async function exitPocketMode() {
+  await game.settings.set(MODULE_ID, "activation", "never");
+  location.reload();
 }
 
 /** Register the client-scope activation setting. Call from `init`. */
@@ -99,7 +124,10 @@ export async function applyMobileCanvasMode() {
     return;
   }
 
-  const want = isPocketDevice();
+  // Kill the canvas on a pocket device unless the user opted out via activation=never.
+  // Not simply pocketModeActive(): activation=always on a desktop GM must NOT force
+  // their map off — only real pocket devices ever lose the canvas.
+  const want = isPocketDevice() && activationMode() !== "never";
   const off = game.settings.get("core", "noCanvas");
   const managed = game.settings.get(MODULE_ID, "canvasManaged");
 
@@ -277,6 +305,24 @@ function installLauncherFab() {
   document.body.appendChild(btn);
 }
 
+/** Inject the "enter pocket mode" button — the inverse FAB. Shown only on a pocket
+ *  device that has opted out (activation=never → normal Foundry), so a desktop never
+ *  sees it. Tap → switch this device back into the fullscreen sheet. Idempotent. */
+function installEnterFab() {
+  if (document.getElementById("ms-enter-fab")) return;
+
+  const btn = document.createElement("button");
+  btn.id = "ms-enter-fab";
+  btn.type = "button";
+  btn.className = "ms-fab ms-enter-fab";
+  btn.title = game.i18n.localize("MOBILE_SHEET.launcher.enterTitle");
+  btn.setAttribute("aria-label", btn.title);
+  btn.innerHTML = `<i class="fas fa-mobile-screen-button"></i>`;
+  btn.addEventListener("click", () => enterPocketMode());
+
+  document.body.appendChild(btn);
+}
+
 // --- pocket "sheet-only" chrome -------------------------------------------
 
 /**
@@ -331,6 +377,8 @@ export function activateLauncher() {
   // character switcher (tap the portrait), so the FAB is redundant — skip it.
   const sheetOnly = document.body.classList.contains("pocket-sheets-daggerheart-only");
   if (shouldShowFab() && !sheetOnly) installLauncherFab();
+  // Pocket device that opted out (activation=never) → offer a way back in.
+  else if (isPocketDevice() && !pocketModeActive()) installEnterFab();
   if (!shouldActivate()) return;
 
   const actor = resolveTargetActor();

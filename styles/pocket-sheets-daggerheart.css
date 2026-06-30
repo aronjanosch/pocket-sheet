@@ -1051,6 +1051,43 @@
 
 .ms-fab:hover { filter: brightness(1.08); }
 
+/* Inverse FAB: shown in normal Foundry on a pocket device that opted out, to jump
+ * back into pocket mode. No sheet accent in scope here, so use a fixed slate fill. */
+.ms-enter-fab {
+  background: linear-gradient(135deg, #3b4a63, #243044);
+  color: #eef2f8;
+  border-color: #ffffff33;
+}
+
+/* In-sheet "exit pocket mode" control: top-trailing corner, above the header. Only
+ * rendered when this device is in fullscreen pocket mode (see canExitPocket). */
+.ms-exit-pocket {
+  position: absolute;
+  top: max(var(--ms-gap), env(safe-area-inset-top));
+  right: max(var(--ms-gap), env(safe-area-inset-right));
+  z-index: 60;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  border: 1px solid #ffffff2e;
+  background: #0000004d;
+  color: #fff;
+  font-size: 0.85rem;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.ms-exit-pocket:hover { background: #00000080; }
+
+/* Keep the header's top-stats clear of the corner exit button. */
+.ms-exit-pocket + .ms-flourish + .ms-identity {
+  padding-right: 42px;
+}
+
 /* --- phone "sheet-only" mode --------------------------------------------- */
 /* Set by launcher.js when on a phone with the canvas disabled: hide all of
  * Foundry's chrome and let the sheet fill the viewport. The sheet, launcher and

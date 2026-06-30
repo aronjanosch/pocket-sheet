@@ -78,16 +78,18 @@
   "MOBILE_SHEET.journal.cat.pdf": "Document",
   "MOBILE_SHEET.journal.cat.video": "Video",
 
-  "MOBILE_SHEET.settings.activation.name": "Activation",
-  "MOBILE_SHEET.settings.activation.hint": "When to auto-open the mobile sheet on this device. Reload after changing.",
-  "MOBILE_SHEET.settings.activation.auto": "Auto (open on phones/tablets)",
+  "MOBILE_SHEET.settings.activation.name": "Pocket mode",
+  "MOBILE_SHEET.settings.activation.hint": "Pocket mode on this device: opens the mobile sheet, shows the launcher button, and turns the map canvas off. Pick Never to play normally with the full Foundry interface and map, even on a tablet. Reload after changing.",
+  "MOBILE_SHEET.settings.activation.auto": "Auto (on for phones & tablets)",
   "MOBILE_SHEET.settings.activation.always": "Always (also on desktop)",
-  "MOBILE_SHEET.settings.activation.never": "Never (open it manually)",
+  "MOBILE_SHEET.settings.activation.never": "Never (normal Foundry, map on)",
 
   "MOBILE_SHEET.settings.disableCanvasOnMobile.name": "Disable map on phones",
   "MOBILE_SHEET.settings.disableCanvasOnMobile.hint": "On phones/tablets, turn off Foundry's map canvas so this device is a pure character sheet — saves battery and memory. Reloads once when it changes.",
 
   "MOBILE_SHEET.launcher.fabTitle": "Open mobile sheet",
+  "MOBILE_SHEET.launcher.enterTitle": "Enter pocket mode",
+  "MOBILE_SHEET.launcher.exitTitle": "Exit to full Foundry",
   "MOBILE_SHEET.launcher.selectTitle": "Choose a character",
   "MOBILE_SHEET.launcher.switchTitle": "Switch character",
 

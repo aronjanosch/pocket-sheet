@@ -8,16 +8,32 @@ export const MODULE_ID = "pocket-sheets-daggerheart";
 
 const mq = (q) => window.matchMedia?.(q)?.matches ?? false;
 
-/** Touch-primary AND phone-width. The pure "sheet device": canvas off, full-screen. */
-export function isPhone() {
-  return mq("(pointer: coarse)") && mq("(max-width: 768px)");
+/** Has a touch screen — even when iPadOS Safari masquerades as a desktop Mac.
+ *  "Request Desktop Website" is default-ON for 11"+ iPads (incl. iPad Air 13"),
+ *  which makes `(pointer: coarse)` read `fine` and the UA say "Macintosh", so the
+ *  old pointer-only test never fired. `maxTouchPoints` is hardware — it survives
+ *  desktop mode; `(any-pointer: coarse)` catches phones/tablets in mobile mode. */
+function hasTouch() {
+  return (navigator.maxTouchPoints ?? 0) > 0 || mq("(any-pointer: coarse)");
 }
 
-/** Touch-primary AND tablet-width (iPad portrait ~810/834 … landscape 1024–1366).
- *  Drives the 3-pane iPad layout. Both conditions, so a resized desktop window or a
- *  touch laptop (fine pointer) never qualifies. */
+/** iPadOS in desktop mode reports UA "Macintosh" but, unlike a real Mac, has a
+ *  multi-touch screen (maxTouchPoints > 1). Real Macs report 0. Used as a tablet
+ *  escape hatch since desktop-mode iPads also report a wide, fine-pointer viewport. */
+function isDesktopModeIpad() {
+  return /Macintosh/.test(navigator.userAgent ?? "") && (navigator.maxTouchPoints ?? 0) > 1;
+}
+
+/** Touch screen AND phone-width. The pure "sheet device": canvas off, full-screen. */
+export function isPhone() {
+  return hasTouch() && mq("(max-width: 768px)");
+}
+
+/** Touch screen AND tablet-width (iPad portrait ~810/834 … landscape 1024–1366),
+ *  OR an iPadOS device running in desktop mode (whatever width it reports).
+ *  Drives the 3-pane iPad layout; a fine-pointer desktop without touch never qualifies. */
 export function isTablet() {
-  return mq("(pointer: coarse)") && mq("(min-width: 769px)") && mq("(max-width: 1366px)");
+  return (hasTouch() && mq("(min-width: 769px)") && mq("(max-width: 1366px)")) || isDesktopModeIpad();
 }
 
 /** Any pocket device (phone or tablet): gets canvas-off + full-screen sheet-only chrome. */

@@ -103,7 +103,8 @@ export class PocketSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
       journalBack: PocketSheet.#onJournalBack,
       journalPage: PocketSheet.#onJournalPage,
       sendChat: PocketSheet.#onSendChat,
-      switchActor: PocketSheet.#onSwitchActor
+      switchActor: PocketSheet.#onSwitchActor,
+      exitPocket: PocketSheet.#onExitPocket
     }
   };
 
@@ -140,7 +141,7 @@ export class PocketSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
 
     const tabs = (vm?.tabs ?? []).filter((t) => t && t.id);
     if (!tabs.length) {
-      return { ...base, state: "empty", isEmpty: true, identity: this.#identity(vm) };
+      return { ...base, state: "empty", isEmpty: true, identity: this.#identity(vm), canExitPocket: this.#inPocketMode() };
     }
 
     // iPad (3-pane) vs phone (single column). On iPad the FIRST tab becomes the
@@ -198,6 +199,7 @@ export class PocketSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
       themeStyle: `--ms-accent:${theme.accent}; --ms-accent-deep:${theme.accentDeep};`,
       identity: this.#identity(vm),
       canSwitch: this.#switchableCount() > 1,
+      canExitPocket: this.#inPocketMode(),
       topStats: (vm.topStats ?? []).map((s) => ({ ...s, value: String(s.value) })),
       tabs: contentTabs.map((t) => ({ id: t.id, label: t.label, active: t.id === active?.id })),
       blocks,
@@ -218,6 +220,12 @@ export class PocketSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
   /** True when the viewport is iPad-class (drives the 3-pane layout). Defensive. */
   #isIpad() {
     try { return isTablet(); } catch (_) { return false; }
+  }
+
+  /** True when this device is running in fullscreen sheet-only pocket mode (canvas off,
+   *  Foundry chrome stripped). Gates the in-sheet "exit pocket mode" control. */
+  #inPocketMode() {
+    return document.body.classList.contains("pocket-sheets-daggerheart-only");
   }
 
   /** Massage a tab's blocks into render-ready data, then enrich any flagged info block
@@ -997,6 +1005,13 @@ export class PocketSheet extends HandlebarsApplicationMixin(ActorSheetV2) {
   static async #onSwitchActor() {
     const { ActorSelector } = await import("./launcher.js");
     new ActorSelector().render(true);
+  }
+
+  /** Leave fullscreen pocket mode → back to the full Foundry interface (map on).
+   *  Per-device; the inverse FAB (or the macro) brings it back. Reloads. */
+  static async #onExitPocket() {
+    const { exitPocketMode } = await import("./launcher.js");
+    await exitPocketMode();
   }
 
   // --- secondary gesture (long-press / right-click → openItem) --------------
