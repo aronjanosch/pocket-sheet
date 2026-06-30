@@ -63,6 +63,33 @@ export async function exitPocketMode() {
   location.reload();
 }
 
+/** Seed a hotbar-ready "Toggle Pocket Mode" macro once per world (GM only). We ship no
+ *  compendium — packing one is a build step (LevelDB), which this module forbids — so we
+ *  create the document directly. The `macroSeeded` flag means a deleted macro stays deleted. */
+async function seedToggleMacro() {
+  if (!game.user.isGM) return;
+  if (game.settings.get(MODULE_ID, "macroSeeded")) return;
+
+  const command =
+    `const id = "${MODULE_ID}";\n` +
+    `const api = game.modules.get(id).api;\n` +
+    `// One device-local switch: leave pocket mode if on, enter it if off. Reloads.\n` +
+    `game.settings.get(id, "activation") === "never" ? api.enterPocketMode() : api.exitPocketMode();`;
+
+  try {
+    await Macro.create({
+      name: "Toggle Pocket Mode",
+      type: "script",
+      img: "icons/svg/cog.svg",
+      command,
+      flags: { [MODULE_ID]: { toggle: true } }
+    });
+    await game.settings.set(MODULE_ID, "macroSeeded", true);
+  } catch (err) {
+    console.warn(`${MODULE_ID} | could not seed the Toggle Pocket Mode macro`, err);
+  }
+}
+
 /** Register the client-scope activation setting. Call from `init`. */
 export function registerActivationSettings() {
   game.settings.register(MODULE_ID, "activation", {
@@ -95,6 +122,15 @@ export function registerActivationSettings() {
   // our own change and leave a player's manual "Disable Canvas" choice alone.
   game.settings.register(MODULE_ID, "canvasManaged", {
     scope: "client",
+    config: false,
+    type: Boolean,
+    default: false
+  });
+
+  // Internal: world-scoped, set once we've seeded the "Toggle Pocket Mode" macro,
+  // so a GM who deletes it doesn't get it recreated on every reload.
+  game.settings.register(MODULE_ID, "macroSeeded", {
+    scope: "world",
     config: false,
     type: Boolean,
     default: false
@@ -371,6 +407,7 @@ function installLayoutWatcher() {
  */
 export function activateLauncher() {
   installDiceShim();
+  seedToggleMacro();
   applyMobileChrome();
   installLayoutWatcher();
   // In fullscreen sheet-only mode the sheet can't be closed and carries its own
